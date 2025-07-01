@@ -5,6 +5,8 @@ use Illuminate\Http\Request;
 use App\Http\Controllers\API\AuthController;
 use App\Http\Controllers\ServicesController;
 use App\Http\Controllers\ProductsController;
+use App\Http\Controllers\CustomerController;
+use App\Http\Controllers\AppointmentController;
 // Route::middleware('auth:sanctum')->get('/clients', function (Request $request) {
 //     return $request->clients();
 // });
@@ -44,6 +46,19 @@ Route::middleware('auth:sanctum')->group(function(){
 
 
 });
+//customer API
+Route::post('/customer/register', [CustomerController::class, 'store']);
+// Route::middleware('auth:sanctum')->get('/client/customers', [ClientCustomerController::class, 'index']);
+
+
+Route::middleware('auth:sanctum')->group(function () {
+    Route::get('/appointments', [AppointmentController::class, 'show']);
+
+    Route::put('/appointments/{id}', [AppointmentController::class, 'update']);
+    Route::delete('/appointments/{id}', [AppointmentController::class, 'destroy']);
+});
+
+Route::post('/appointments', [AppointmentController::class, 'store']);
 
 
 

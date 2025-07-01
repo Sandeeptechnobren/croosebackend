@@ -13,6 +13,7 @@ use App\Models\User;
 use App\Models\clients;
 use Illuminate\Http\Response;
 use App\Mail\SendOtpMail;
+use App\Models\Client;
 
 class AuthController extends Controller
 {
@@ -27,7 +28,7 @@ class AuthController extends Controller
             'password' => 'required|string|min:8',
         ]);
 
-        $user = clients::create([
+        $user = Client::create([
             'name' => $request->name,
             'business_name' => $request->business_name,
             'business_location' => $request->business_location,
@@ -52,7 +53,7 @@ class AuthController extends Controller
         ]);
         
 
-        $user = clients::where('email', $request->email)->first();
+        $user = Client::where('email', $request->email)->first();
        
 
         if (!$user || !Hash::check($request->password, $user->password)) {
