@@ -110,9 +110,9 @@ return [
     |
     */
 
-    'from' => [
-        'address' =>'sandeeptechnobren@gmail.com',
-        'name' =>'Croose'
-    ],
+   'from' => [
+    'address' => env('MAIL_FROM_ADDRESS', 'sandeeptechnobren@gmail.com'),
+    'name' => env('MAIL_FROM_NAME', 'Croose'),
+],
 
 ];
