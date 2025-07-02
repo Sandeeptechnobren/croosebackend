@@ -16,5 +16,12 @@ class Customer extends Model
         {
             return $this->hasMany(Appointment::class);
         }
+    public function clients()
+        {
+            return $this->belongsToMany(Client::class, 'client_customer')
+                        ->withPivot('first_interaction_at', 'source')
+                        ->withTimestamps();
+        }
+
 
 }

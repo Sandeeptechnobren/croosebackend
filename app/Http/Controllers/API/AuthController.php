@@ -198,7 +198,7 @@ class AuthController extends Controller
                         'body' => "Your Croose OTP is: {$otp}"
                     ]);
                 } catch (\Exception $e) {
-                    \Log::error("WhatsApp OTP Error: " . $e->getMessage());
+                    
                     return response()->json([
                         'success' => false,
                         'message' => 'OTP sent to email, but WhatsApp failed.',

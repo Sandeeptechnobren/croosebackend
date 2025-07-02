@@ -27,6 +27,15 @@ class Client extends Authenticatable
         {
             return $this->hasMany(Appointment::class);
         }
+
+    public function customers()
+        {
+            return $this->belongsToMany(Customer::class, 'client_customer')
+                        ->withPivot('first_interaction_at', 'source')
+                        ->withTimestamps();
+        }
+
+
             
 
     

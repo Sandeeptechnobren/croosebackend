@@ -1,12 +1,14 @@
 <?php
-
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
 
+use App\Models\ClientCustomer;
+use Illuminate\Http\Request;
 use App\Models\Customer;
 
-use app\Models\clients;
+// use Illuminate\Container\Attributes\Auth;
+use Illuminate\Support\Facades\Auth;
+
 
 class CustomerController extends Controller
 {
@@ -18,7 +20,7 @@ public function store(Request $request)
         'email' => 'nullable|email',
         'whatsapp_number' => 'nullable|string',
     ]);
-
+ 
     $customer = Customer::create($validated);
 
     return response()->json([
@@ -27,5 +29,16 @@ public function store(Request $request)
         'data' => $customer,
     ]);
 }
+
+    public function getCustomer(){
+        $user=Auth::user();
+        $customer=ClientCustomer::where('client_id',$user->id)->get();
+
+        return response()->json([
+            'success' =>true,
+            'data'=>$customer
+        ]);
+
+    } 
 
 }

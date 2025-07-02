@@ -47,6 +47,11 @@ Route::middleware('auth:sanctum')->group(function(){
 
 });
 //customer API
+Route::middleware('auth:sanctum')->group(function(){
+    Route::get('/getCustomer',[CustomerController::class,'getCustomer']);
+});
+
+
 Route::post('/customer/register', [CustomerController::class, 'store']);
 // Route::middleware('auth:sanctum')->get('/client/customers', [ClientCustomerController::class, 'index']);
 
