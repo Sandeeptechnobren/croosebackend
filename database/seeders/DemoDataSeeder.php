@@ -9,53 +9,62 @@ use App\Models\Service;
 use App\Models\Appointment;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\DB;
+use Carbon\Carbon;
+
 
 class DemoDataSeeder extends Seeder
 {
     public function run(): void
     {
-        for ($i = 55; $i <= 64; $i++) {
-            // Create Client
-            $client = Client::create([
-                'name' => "Client $i",
-                'business_name' => "Business $i",
-                'business_location' => 'Mumbai',
-                'email' => "client$i@example.com",
-                'password' => Hash::make('password123'),
+        // for ($i = 1; $i <=22; $i++) {
+            // DB::table('customers')->insert([
+            //     'name' => 'Customer ' . $i,
+            //     'whatsapp_number' => '9876543' . str_pad($i, 3, '0', STR_PAD_LEFT),
+            //     'email' => "customer{$i}@example.com",
+            //     'address' => "Address {$i}",
+            //     'pin_code' => rand(100000, 999999),
+            //     'meta' => json_encode(['notes' => 'Sample note for customer ' . $i]),
+            //     'created_at' => now(),
+            //     'updated_at' => now(),
+            // ]);
+        //          DB::table('countries')->insert([
+        //         'country_code' => 'C000' . $i,
+        //         'country_name' => 'UK',
+        //         'created_at' => now(),
+        //         'updated_at' => now(),
+        //     ]);
+        // }
+        //  DB::table('appointments')->insert([
+        //         'client_id' => rand(1, 5), // Make sure clients with IDs 1-5 exist
+        //         'customer_id' => rand(1, 10), // Ensure customers exist with IDs 1–10
+        //         'service_id' => rand(1, 5), // or null if needed
+        //         'scheduled_at' => Carbon::now()->addDays(rand(1, 30))->setTime(rand(9, 17), 0),
+        //         'status' => ['pending', 'confirmed', 'cancelled', 'completed'][rand(0, 3)],
+        //         'notes' => Str::random(20),
+        //         'created_at' => now(),
+        //         'updated_at' => now(),
+        //     ]);
+        // }
+        
+
+        for ($i = 1; $i <= 10; $i++) {
+            DB::table('orders')->insert([
+                'client_id'   => rand(1, 5), // Make sure clients with IDs 1-5 exist
+                'customer_id' => rand(1, 10), // Ensure customers exist with IDs 1–10
+                'product_id'  => rand(1, 10), // Ensure products exist with IDs 1–10
+                'status'      => ['pending', 'confirmed', 'cancelled', 'completed'][rand(0, 3)],
+                'address'     => 'Address ' . $i,
+                'notes'       => Str::random(20),
+                'pincode'     => rand(100000, 999999),
+                'created_at'  => now(),
+                'updated_at'  => now(),
             ]);
-
-            // Create 2 Customers per Client
-            for ($j = 4; $j <= 13; $j++) {
-                $customer = Customer::firstOrCreate([
-                    'phone' => "98722112{$i}{$j}"
-                ], [
-                    'name' => "Customer {$i}{$j}",
-                    'email' => "customer{$i}{$j}@example.com",
-                    'whatsapp_number' => "98722112{$i}{$j}"
-                ]);
-
-                // Attach customer to client (many-to-many)
-                $client->customers()->syncWithoutDetaching($customer->id);
-
-                // Create Service for this client
-                $service = Service::create([
-                    'client_id' => $client->id,
-                    'name' => 'Haircut ' . Str::random(4),
-                    'description' => 'Basic Haircut',
-                    'price' => rand(100, 500),
-                    'duration_minutes' => rand(30, 120),
-                ]);
-
-                // Create Appointment
-                Appointment::create([
-                    'client_id' => $client->id,
-                    'customer_id' => $customer->id,
-                    'service_id' => $service->id,
-                    'scheduled_at' => now()->addDays(rand(1, 5)),
-                    'status' => 'scheduled',
-                    'notes' => 'Auto-generated appointment',
-                ]);
-            }
         }
     }
 }
+
+        
+    
+
+

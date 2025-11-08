@@ -4,20 +4,22 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-
+use Illuminate\Support\Str;
 class Service extends Model
 {
     use HasFactory;
 
     protected $fillable = [
         'client_id',
+        'space_id',
         'name',
-        'slug',
         'description',
         'duration_minutes',
         'price',
+        'currency',
         'unit',
         'category',
+        'image',
         'type',
         'buffer_minutes',
         'available_days',
@@ -32,4 +34,16 @@ class Service extends Model
         'is_active' => 'boolean',
         'is_featured' => 'boolean',
     ];
+    protected static function booted()
+        {
+            static::creating(function ($service) {
+                if (empty($service->uuid)) {
+                    $service->uuid = (string) Str::uuid();
+                }
+            });
+        }
+    public function space()
+        {
+            return $this->belongsTo(Space::class, 'space_id');
+        }
 }

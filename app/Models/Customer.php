@@ -5,13 +5,27 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use app\Models\Clients;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Str;
+use App\Models\Appointment;
 
 
 class Customer extends Model
 {
-    protected $fillable = ['name', 'phone', 'email', 'whatsapp_number', 'meta'];
+    protected $fillable = ['name', 'phone', 'email', 'whatsapp_number','address', 'meta', 'uuid'];
 
-    
+     protected static function boot()
+    {
+        parent::boot();
+
+        static::creating(function ($model) {
+            if (empty($model->uuid)) {
+                $model->uuid = (string) Str::uuid();
+            }
+        });
+    }
+
     public function appointments()
         {
             return $this->hasMany(Appointment::class);

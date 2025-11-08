@@ -10,8 +10,8 @@ class ClientCustomer extends Model
 
     protected $fillable = [
         'client_id',
+        'space_id',
         'customer_id',
         'first_interaction_at',
-        'source',
     ];
 }

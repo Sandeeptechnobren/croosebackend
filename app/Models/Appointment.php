@@ -1,8 +1,10 @@
 <?php
 
 namespace App\Models;
-
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Str;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Appointment extends Model
 {
@@ -38,10 +40,26 @@ public function service()
 }
         protected $fillable = [
             'client_id',
+            'space_id',
             'customer_id',
             'service_id',
-            'scheduled_at',
+            'appointment_date',
+            'start_time',
+            'end_time',
+            'amount',
+            'images',
             'status',
-            'notes'
+            'notes',
+            'uuid',
         ];
+         protected static function boot()
+    {
+        parent::boot();
+
+        static::creating(function ($model) {
+            if (empty($model->uuid)) {
+                $model->uuid = (string) Str::uuid();
+            }
+        });
+    }
 }

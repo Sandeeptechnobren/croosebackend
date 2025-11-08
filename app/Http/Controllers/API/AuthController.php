@@ -10,213 +10,350 @@ use Illuminate\Http\Response;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Models\Client;
+use Postmark\PostmarkClient;
 use App\Mail\SendOtpMail;
-
 use Illuminate\Support\Facades\Validator;
 use Twilio\Rest\Client as TwilioClient;
-
+use Laravel\Sanctum\PersonalAccessToken;
+use App\Models\OrdiioUser;
+use Illuminate\Support\Facades\Password;
+use Illuminate\Support\Str;
+use App\Mail\ResetPasswordMail;
+use Illuminate\Support\Facades\Http;
+use Carbon\Carbon;
 
 class AuthController extends Controller
 {
-    // ✅ Register
-    public function register(Request $request)
+public function register(Request $request)
     {
-        $request->validate([
-            'name'              => 'required|string|max:255',
-            'business_name'     => 'required|string|max:255',
-            'business_location' => 'required|string|max:255',
-            'email'             => 'required|email|unique:clients,email',
-            'password'          => 'required|string|min:8',
-        ]);
+        DB::beginTransaction();
+        try {
+                $validator = Validator::make($request->all(), [
+                    'name'              => 'required|string|max:255',
+                    'business_name'     => 'required|string|max:255',
+                    'business_location' => 'required|string|max:255',
+                    'phone_number'      => 'required|string|max:20',
+                    'email'             => 'required|email|unique:clients,email',
+                    'password'          => 'required|string|min:8',
+                    'security_question' => 'required',
+                    'security_answer'   => 'required',
+                ]);
 
-        $user = Client::create([
-            'name'              => $request->name,
-            'business_name'     => $request->business_name,
-            'business_location' => $request->business_location,
-            'email'             => $request->email,
-            'password'          => Hash::make($request->password),
-        ]);
+            if ($validator->fails()) {
+                    DB::rollback();
+                    
+                    $errors = $validator->errors()->all();
+                    $errorsString = implode(', ', $errors);
+                    return response()->json(['status'  => false, 'message' => $errorsString, 'errors'  => $validator->errors()], 422);  
+                }
 
-        $token = $user->createToken('authToken')->plainTextToken;
-
-        return response()->json([
-            'token' => $token,
-            'user'  => $user
-        ], 200);
+            $user = Client::create([
+                'name'              => $request->name,
+                'business_name'     => $request->business_name,
+                'business_location' => $request->business_location,
+                'phone_number'      => $request->phone_number,
+                'email'             => $request->email,
+                'password'          => Hash::make($request->password),
+                'security_question' => $request->security_question,
+                'security_answer'   => $request->security_answer,
+            ]);
+            DB::commit();
+            return response()->json(['status' => true, 'data' => $user, 'message' => 'Registration Successfully'], 200);
+        } 
+            catch (\Exception $exception) {
+            DB::rollback();
+            return response()->json(['status' => false, 'message' => 'Oops!!!, something went wrong, please try again.', 'errors' => $exception->getMessage()],500);
+            
+        } catch (\Throwable $exception) {
+            DB::rollback();
+            return response()->json(['status' => false, 'message' => 'Oops!!!, something went wrong, please try again.', 'errors' => $exception->getMessage()],500);
+        }
     }
 
-    // ✅ Login
-    public function login(Request $request)
-    {
+ 
+public function login(Request $request)
+    {    
         $request->validate([
             'email'    => 'required|email',
-            'password' => 'required'
+            'password' => 'required|string|min:8',
         ]);
-
-        $user = Client::where('email', $request->email)->first();
-
-        if (!$user || !Hash::check($request->password, $user->password)) {
-            return response()->json([
-                'message' => 'Invalid credentials',
-            ], Response::HTTP_UNAUTHORIZED);
-        }
-
-        $token = $user->createToken('authToken')->plainTextToken;
-
-        return response()->json([
-            'token'   => $token,
-            'clients' => $user,
-            'message' => 'Login successful'
-        ], Response::HTTP_OK);
+        $client = Client::where('email', $request->email)->first();
+        if (!$client || !Hash::check($request->password, $client->password)) {
+            return response()->json(['status'  => false, 'message' => 'Invalid credentials'], 422);
+            }
+        $token = $client->createToken('auth_token')->plainTextToken;
+        return response()->json(['status'   => true,
+            'data'     => $client,
+            'token'     => $token,
+            'message'  => 'Login Successfully',
+            ], 200);
     }
-
-    // ✅ Logout
-    public function logout(Request $request)
-    {
+   
+public function logout(Request $request)
+    {  
         $request->user()->currentAccessToken()->delete();
-
-        return response()->json(['message' => 'Logged out successfully']);
+        return response()->json([ 'status'  => true, 'message' => 'Logged Out Successfully'],200);
+    } 
+public function sendOtpEmail(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'email' => 'required|email'
+        ]);
+        if ($validator->fails()) { 
+            return response()->json([
+                'status' => true,
+                'message' => 'Validation error',
+                'errors' => $validator->errors()
+            ], 200);
+        }
+        $email = $request->input('email');
+        $otp   = rand(100000, 999999);
+        DB::table('otp_codes')->updateOrInsert(
+            ['email' => $email],
+            ['otp' => $otp, 'created_at' => now()]
+            );
+        try {
+            Mail::raw("Your OTP is: $otp", function ($message) use ($email) {
+                $message->to($email)->subject('Your OTP Code');
+            });
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Failed to send OTP via Email.',
+                'error' => $e->getMessage()
+            ], 500);
+        }   
+            return response()->json([
+                'status' => true,
+                'message' => 'OTP sent to email successfully!'
+            ], 200);
+    }
+   
+public function index()
+    {
+        return response()->json([
+            'status' => true,
+            'users' => Client::all(),
+            'message' =>'Client List'
+        ]);
     }
 
-    // ✅ Send OTP via Email and WhatsApp
-//     public function sendOtp(Request $request)
+// public function reset_password_viasecurity(Request $request)
 //     {
-//         $request->validate([
-//             'email' => 'required|email|exists:clients,email',
-//             'phone' => 'required' // 🟡 Make sure phone is sent in the request
-//         ]);
-
-//         $otp = rand(100000, 999999);
-
-//         DB::table('otp_codes')->updateOrInsert(
-//             ['email' => $request->email],
-//             ['otp' => $otp, 'created_at' => now()]
-//         );
-
-//         // ✅ Send Email
-//         Mail::raw("Your OTP is: $otp", function ($message) use ($request) {
-//             $message->to($request->email)
-//                     ->subject('Your OTP Code');
-//         });
-
-//         // ✅ Send WhatsApp
-       
-       
-
-//         return response()->json(['message' => 'OTP sent to your email and WhatsApp.'], 200);
+//         try{
+//             DB::beginTransaction();
+//             $validated=$request->validate([
+//                 'phone_number'      => 'required|string',
+//                 'email'             => 'required|email',
+//                 'security_question' => 'required',
+//                 'security_answer'   => 'required',
+//                 'password' => 'required|min:8',
+//             ]);
+//             $client=Client::where('phone_number',$validated['phone_number'])
+//                 ->where('email',$validated['email'])
+//                 ->where('security_question',$validated['security_question'])
+//                 ->where('security_answer',$validated['security_answer'])
+//                 ->first();
+//             if(!$client){
+//                 DB::rollback();
+//                 return response()->json(['status'=>false,'message'=>'Client not found!'],404);
+//             }
+//             $client->update([
+//                 'password'=>Hash::make($validated['password']),
+//             ]);
+//             DB::commit();
+//             return response()->json([
+//                 'status' => true,
+//                 'message' => 'Password updated successfully',
+//             ]);
+            
+//         }
+//         catch(\Exception $e){
+//             DB::rollBack();
+//             return response()->json([
+//                 'status'  => false,
+//                 'message' => 'Something went wrong.',
+//                 'error'   => $e->getMessage(),
+//             ], 500);    
+//         }
 //     }
-
-//     // ✅ WhatsApp Sending Function
-
-
-// public function sendOtp(Request $request)
-// {
-//     $validator = Validator::make($request->all(), [
-//         'phone' => 'required|string', // Format: +91XXXXXXXXXX
-//     ]);
-    
-
-
-//     if ($validator->fails()) {
-//         return response()->json(['error' => $validator->errors()], 422);
-//     }
-
-//     $phone = $request->input('phone');
-    
-//     $otp = rand(100000, 999999);
-
-//     // ✅ Save OTP to database (optional, for later verification)
-//     // DB::table('otp_codes')->updateOrInsert(
-//     //     ['phone' => $phone],
-//     //     ['otp' => $otp, 'created_at' => now()]
-//     // );
-
-//     // ✅ Prepare Twilio Client
-//     $sid = env('TWILIO_SID');
-//     $token = env('TWILIO_AUTH_TOKEN');
-//     $from = 'whatsapp:' . env('TWILIO_WHATSAPP_NUMBER');
-//     $to = 'whatsapp:' . $phone;
-
-//     try {
-//         $twilio = new TwilioClient($sid, $token);
-
-//         $twilio->messages->create($to, [
-//             'from' => $from,
-//             'body' => "Your Croose OTP is: {$otp}"
-//         ]);
-
-//         return response()->json([
-//             'success' => true,
-//             'message' => 'OTP sent to WhatsApp successfully!'
-//         ]);
-//     } catch (\Exception $e) {
-//         return response()->json([
-//             'success' => false,
-//             'error' => $e->getMessage()
-//         ], 500);
-//     }
-// }
-
-        public function sendOtp(Request $request)
-            {
-                // ✅ Validate request
-                $validator = Validator::make($request->all(), [
-                    'email' => 'required|email|exists:clients,email',
-                    'phone' => 'required|string', // Format: +91XXXXXXXXXX
-                ]);
-
-                if ($validator->fails()) {
-                    return response()->json(['error' => $validator->errors()], 422);
-                }
-
-                $email = $request->input('email');
-                $phone = $request->input('phone');
-                $otp = rand(100000, 999999);
-
-                // ✅ Store OTP in DB (linked to email)
-                DB::table('otp_codes')->updateOrInsert(
-                    ['email' => $email],
-                    ['otp' => $otp, 'created_at' => now()]
-                );
-
-                // ✅ Send OTP via Email
-                Mail::raw("Your OTP is: $otp", function ($message) use ($email) {
-                    $message->to($email)->subject('Your OTP Code');
-                });
-
-                // ✅ Send OTP via WhatsApp
-                $sid = env('TWILIO_SID');
-                $token = env('TWILIO_AUTH_TOKEN');
-                $from = 'whatsapp:' . env('TWILIO_WHATSAPP_NUMBER');
-                $to = 'whatsapp:' . $phone;
-
-                try {
-                    $twilio = new TwilioClient($sid, $token);
-
-                    $twilio->messages->create($to, [
-                        'from' => $from,
-                        'body' => "Your Croose OTP is: {$otp}"
-                    ]);
-                } catch (\Exception $e) {
-                    
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'OTP sent to email, but WhatsApp failed.',
-                        'error'   => $e->getMessage()
-                    ], 500);
-                }
-
+    public function reset_password_viasecurity(Request $request)
+     {
+        try {
+            DB::beginTransaction();
+            $validated = $request->validate([
+                'phone_number'      => 'required|string',
+                'email'             => 'required|email',
+                'security_question' => 'required|string',
+                'security_answer'   => 'required|string',
+                'password'          => 'required|min:8|confirmed',
+            ]);
+            $client = Client::where('phone_number', $validated['phone_number'])
+                ->where('email', $validated['email'])
+                ->first();
+            if (!$client) {
+                DB::rollBack();
                 return response()->json([
-                    'success' => true,
-                    'message' => 'OTP sent to both email and WhatsApp successfully!'
-                ]);
+                    'status' => false,
+                    'message' => 'Client not found with given phone and email.'
+                ], 404);
+            }
+            if (
+                $client->security_question !== $validated['security_question'] ||
+                $client->security_answer !== $validated['security_answer']
+            ) {
+                DB::rollBack();
+                return response()->json([
+                    'status' => false,
+                    'message' => 'Security question or answer is incorrect.'
+                ], 403);
+            }
+            $client->update([
+                'password' => Hash::make($validated['password']),
+            ]);
+            DB::commit();
+            return response()->json([
+                'status'  => true,
+                'message' => 'Password updated successfully.',
+            ], 200);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'status'  => false,
+                'message' => 'Something went wrong.',
+                'error'   => $e->getMessage(),
+            ], 500);
+        }
+     }
+    
+    public function find_account(Request $request, $email)
+     {
+        $client = Client::where('email', $email)->first();
+        if ($client) {
+            return response()->json([
+                'status' => 200,
+                'account_existing_status' => 1,
+                'name' => $client->name,
+                'message' => "Account exists"
+            ]);
+        } else {
+            return response()->json([
+                'status' => 404,
+                'account_existing_status' => 0,
+                'message' => "Account not found"
+            ]);
+        }
+     }
+
+    // public function forgot_password_ordiio(Request $request)
+    //  {
+    //         $request->validate(['email' => 'required|email']);
+
+    //         $user = OrdiioUser::where('email', $request->email)->first();
+    //         if (!$user) {
+    //             return response()->json(['message' => 'User not found'], 404);
+    //         }
+ 
+    //         $token = Str::random(64);
+
+    //         DB::table('password_reset_tokens')->updateOrInsert(
+    //             ['email' => $request->email],
+    //             ['token' => $token, 'created_at' => now()]
+    //         );
+ 
+    //         return response()->json(['message' => 'Reset token generated', 'token' => $token]);
+    //  }
+
+    //  public function reset_password_ordiio(Request $request)
+    //   {
+    //         $request->validate([
+    //             'email' => 'required|email',
+    //             'token' => 'required|string',
+    //             'password' => 'required|string|min:6',
+    //         ]);
+
+    //         $reset = DB::table('password_reset_tokens')
+    //             ->where('email', $request->email)
+    //             ->where('token', $request->token)
+    //             ->first();
+
+    //         if (!$reset) {
+    //             return response()->json(['message' => 'Invalid token'], 400);
+    //         }
+
+    //         OrdiioUser::where('email', $request->email)->update([
+    //             'password' => bcrypt($request->password),
+    //         ]);
+
+    //         // Delete used token
+    //         DB::table('password_reset_tokens')->where('email', $request->email)->delete();
+
+    //         return response()->json(['message' => 'Password reset successful']);
+    //   }
+     
+    public function forgot_password_ordiio(Request $request)
+     {
+            $request->validate(['email' => 'required|email']);
+
+            $user = OrdiioUser::where('email', $request->email)->first();
+            if (!$user) {
+                return response()->json(['message' => 'User not found'], 404);
             }
 
+            $token = Str::random(64);
 
-    
+            DB::table('password_reset_tokens')->updateOrInsert(
+                ['email' => $request->email],
+                ['token' => $token, 'created_at' => now()]
+            );
+ 
+            $resetLink = 'https://app.ordiio.com/reset-password?token=' . $token . '&email=' . $request->email;
 
-    public function index()
-    {
-        return response()->json(User::all());
-    }
+            $response = Http::withHeaders([
+                    'Accept' => 'application/json',
+                ])->post('https://apiadmin.schoolexl.com/index.php/api/v2/ordiio/reset-password', [
+                    'link' => $resetLink,
+                    'email' => $request->email,
+                    'name'  => $user->name ?? 'User',
+                ]);
+
+            // Mail::to($request->email)->send(new ResetPasswordMail($resetLink));
+
+            return response()->json(['message' => 'Reset link sent to your email']);
+     }
+ 
+     public function reset_password_ordiio(Request $request)
+      {
+            $request->validate([
+                'email' => 'required|email',
+                'token' => 'required|string',
+                'password' => 'required|string|min:6',
+            ]);
+
+            $reset = DB::table('password_reset_tokens')
+                ->where('email', $request->email)
+                ->where('token', $request->token)
+                ->first();
+
+            if (!$reset) {
+                return response()->json(['message' => 'Invalid token'], 400);
+            }
+
+            // Optional: check if token is expired (e.g., older than 1 hour)
+            if (Carbon::parse($reset->created_at)->addHour()->isPast()) {
+                return response()->json(['message' => 'Token expired'], 400);
+            }
+
+            OrdiioUser::where('email', $request->email)->update([
+                'password' => bcrypt($request->password),
+            ]);
+
+            // Delete used token
+            DB::table('password_reset_tokens')->where('email', $request->email)->delete();
+
+            return response()->json(['message' => 'Password reset successful']);
+      }
+
+
 }
