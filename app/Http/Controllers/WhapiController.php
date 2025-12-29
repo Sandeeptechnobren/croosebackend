@@ -10,13 +10,92 @@ use App\Models\Space_whapipayment_details;
 
 class WhapiController extends Controller
 {
+// public function createInstance(Request $request)
+//     {
+//         $client_id = Auth::user()->id;
+//         $validated = $request->validate([
+//             'space_id' => 'required|exists:spaces,id'
+//         ]);
+//         $space_id = $validated['space_id'];
+//         $existing = Space_whapichannel_details::where('space_id', $space_id)->first();
+//         if ($existing) {
+//             return response()->json([
+//                 'message' => 'Instance already exists for this space.',
+//                 'instance_status' => 1,
+//                 'payment_status' => $existing->payment_status,
+//                 'instance_activation_status' => $existing->_instance_activation_status
+//             ], 200);
+//         }
+//         $space = Space::find($space_id);
+//         $currency = $space->currency;
+//         $activation_charge = 0;
+//         $baseAmount = 199;
+//         if ($currency !== 'USD') {
+//             $apiKey = 'd20fa341e260799a2339a543';
+//             $response = Http::get("https://v6.exchangerate-api.com/v6/{$apiKey}/latest/USD");
+//             if ($response->successful()) {
+//                 $rateData = $response->json();
+//                 $exchangeRate = $rateData['conversion_rates'][$currency] ?? null;
+//                 if (!$exchangeRate) {
+//                     return response()->json(['error' => 'Currency conversion unavailable'], 500);
+//                 }
+//                 $activation_charge = round($baseAmount * $exchangeRate, 2);
+//             } else {
+//                 return response()->json(['error' => 'Currency API call failed'], 500);
+//             }
+//         } elseif ($currency === 'USD' && $isPremium == 0) {
+//             $activation_charge = $baseAmount;
+//         }
+//         $name = $space->chatbot_name;
+//         $response = Http::withToken(env('WHAPI_MASTER_TOKEN'))
+//             ->put('https://manager.whapi.cloud/channels', [
+//                 'name' => $name,
+//                 'projectId' => 'TSu2uo9AC9nu91aoz6Ae'
+//             ]);
+//         if (!$response->successful()) {
+//             return response()->json([
+//                 'error' => 'Failed to create instance',
+//                 'status' => $response->status(),
+//                 'body' => $response->body(),
+//                 'json' => $response->json(),
+//             ], $response->status());
+//         }
+//         $data = $response->json();
+//         Space_whapichannel_details::create([
+//             'space_id'          => $space_id,
+//             'client_id'         => $space->client_id,
+//             'payment_status'    => 'unpaid',
+//             'payment_method'    => 'whapi',
+//             'payment_origin'    => 'dashboard',
+//             'payment_reference' => null,
+//             'payment_amount'    => $activation_charge,
+//             'instance_id'       => $data['id'] ?? null,
+//             'creationTS'        => $data['creationTS'] ?? 0,
+//             'ownerId'           => $data['ownerId'] ?? '',
+//             'activeTill'        => $data['activeTill'] ?? 0,
+//             'token'             => $data['token'] ?? '',
+//             'server'            => $data['server'] ?? 0,
+//             'stopped'           => $data['stopped'] ?? false,
+//             'status'            => $data['status'] ?? 'inactive',
+//             'name'              => $data['name'] ?? '',
+//             'projectId'         => $data['projectId'] ?? '',
+//             'activation_charge' => $activation_charge // new field for storing calculated charge
+//         ]);
 
+//         return response()->json([
+//             'message' => 'Instance created successfully',
+//             'activation_charge' => $activation_charge,
+//             'currency'=>$currency,
+//             'data' => $data
+//         ]);
+//     }
 public function createInstance(Request $request)
 {
     $client_id = Auth::user()->id;
     $validated = $request->validate([
         'space_id' => 'required|exists:spaces,id'
     ]);
+
     $space_id = $validated['space_id'];
     $existing = Space_whapichannel_details::where('space_id', $space_id)->first();
     if ($existing) {
@@ -27,6 +106,7 @@ public function createInstance(Request $request)
             'instance_activation_status' => $existing->_instance_activation_status
         ], 200);
     }
+
     $space = Space::find($space_id);
     $currency = strtoupper($space->currency);
     $activation_charge = 0;
@@ -83,6 +163,7 @@ public function createInstance(Request $request)
         'projectId'         => $data['projectId'] ?? '',
         'activation_charge' => $activation_charge
     ]);
+
     return response()->json([
         'message' => 'Instance created successfully',
         'activation_charge' => $activation_charge,
@@ -91,35 +172,38 @@ public function createInstance(Request $request)
     ]);
 }
 
+
 public function fetchQrCode(Request $request)
-{
-    $validated = $request->validate([
-        'space_id' => 'required|exists:Space_whapichannel_details,space_id',
-    ], [
-        'space_id.exists' => 'The WhatsApp instance for this space has not been created yet.',
-        'space_id.required' => 'The space ID is required.',
-    ]);
-    $instance = Space_whapichannel_details::where('space_id', $validated['space_id'])->first();
-    if (!$instance) {
-        return response()->json(['error' => 'Instance not found.'], 404);
+    {
+        $validated = $request->validate([
+            'space_id' => 'required|exists:Space_whapichannel_details,space_id',
+        ], [
+            'space_id.exists' => 'The WhatsApp instance for this space has not been created yet.',
+            'space_id.required' => 'The space ID is required.',
+        ]);
+        $instance = Space_whapichannel_details::where('space_id', $validated['space_id'])->first();
+        
+        if (!$instance) {
+            return response()->json(['error' => 'Instance not found.'], 404);
+        }
+        if ($instance->payment_status !== 'success') {
+            return response()->json([
+                'error' => 'Payment not successful.',
+                'payment_status' => $instance->payment_status,
+            ], 403);
+        }
+        if (!$instance->token || !$instance->instance_id) {
+            return response()->json(['error' => 'Instance token or ID is missing'], 400);
+        }
+        return $this->getQrCode($instance->instance_id, $instance->token);
     }
-    if ($instance->payment_status !== 'success') {
-        return response()->json([
-            'error' => 'Payment not successful.',
-            'payment_status' => $instance->payment_status,
-        ], 403);
-    }
-    if (!$instance->token || !$instance->instance_id) {
-        return response()->json(['error' => 'Instance token or ID is missing'], 400);
-    }
-    return $this->getQrCode($instance->instance_id, $instance->token);
-}
     
 private function getQrCode($instanceId, $token)
     {
         try {
             $instance = Space_whapichannel_details::where('token', $token)->first();
-            $response = Http::withToken(env('WHAPI_MASTER_TOKEN'))->get("https://manager.whapi.cloud/channels/{$instanceId}");
+            $response = Http::withToken(env('WHAPI_MASTER_TOKEN'))
+            ->get("https://manager.whapi.cloud/channels/{$instanceId}");
             // if ($response->failed()) {
             //     return response()->json([
             //         'success' => false,
@@ -129,6 +213,7 @@ private function getQrCode($instanceId, $token)
             //     ], $response->status());
             // }
             $channel = $response->json();
+            
         // $isPaid = isset($channel['recurrentPaymentId']) &&
         //           ($channel['mode'] ?? null) === 'live' &&
         //           $channel['stopped'] === false;
@@ -169,21 +254,27 @@ private function getQrCode($instanceId, $token)
                 'authorization' => 'Bearer ' . $token,
             ],
         ]);
+
         if ($qrResponse->getStatusCode() === 200) {
             $instance->_whatsapp_linking_status = 0;
             $instance->save();
-            return response($qrResponse->getBody()->getContents(), 200)->header('Content-Type', 'image/png');
+
+            return response($qrResponse->getBody()->getContents(), 200)
+                ->header('Content-Type', 'image/png');
         }
+
         logger()->error('Whapi QR fetch failed', [
             'status' => $qrResponse->getStatusCode(),
             '_whatsapp_linking_status_' => 0,
             'body' => $qrResponse->getBody()->getContents(),
         ]);
+
         return response()->json([
             'error' => 'Failed to fetch QR',
             'status' => $qrResponse->getStatusCode(),
             'response' => $qrResponse->getBody()->getContents()
         ], 500);
+
     } catch (\Exception $e) {
         logger()->error('Exception while fetching QR', [
             'message' => $e->getMessage()
