@@ -25,6 +25,8 @@ use App\Http\Controllers\paymentController;
 use App\Http\Controllers\SubscriptionController;
 use App\Http\Controllers\DelaydogController;
 use App\Http\Controllers\ConversationController;
+use App\Http\Controllers\BroadcastController;
+
     Route::post('/register', [AuthController::class, 'register'])->name('register');
     Route::post('/login', [AuthController::class, 'login'])->name('login');
     Route::get('/clients', [AuthController::class, 'index'])->name('index');
@@ -47,6 +49,15 @@ use App\Http\Controllers\ConversationController;
         Route::post('/services/bulkupload',[ServicesController::class, 'addbulkservices']);
         Route::delete('/services/{id}', [ServicesController::class, 'destroy']);
         Route::get('/getServicesBySpace',[ServicesController::class,'getServicesBySpace']);
+
+        //BroadcastController
+        Route::prefix('broadcast')->group(function () {
+            Route::get('/',        [BroadcastController::class, 'index']);
+            Route::get('/{id}',    [BroadcastController::class, 'show']);
+            Route::post('/',       [BroadcastController::class, 'store']);
+            Route::put('/{id}',    [BroadcastController::class, 'update']);
+            Route::delete('/{id}', [BroadcastController::class, 'destroy']);
+        });
 
         //products API
         Route::get('/products', [ProductsController::class, 'get_products']);
@@ -224,7 +235,8 @@ use App\Http\Controllers\ConversationController;
         Route::post('/ordiio_stripe/webhook', [OrdiioController::class, 'webhook']);
         // Route::post('/ordiio_stripe/webhook', [OrdiioController::class, 'webhook_subs']);
 
-
+        
+    
 
        
        
