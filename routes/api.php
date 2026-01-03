@@ -25,6 +25,7 @@ use App\Http\Controllers\paymentController;
 use App\Http\Controllers\SubscriptionController;
 use App\Http\Controllers\DelaydogController;
 use App\Http\Controllers\ConversationController;
+use App\Http\Controllers\BroadcastController;
     Route::post('/register', [AuthController::class, 'register'])->name('register');
     Route::post('/login', [AuthController::class, 'login'])->name('login');
     Route::get('/clients', [AuthController::class, 'index'])->name('index');
@@ -142,6 +143,20 @@ use App\Http\Controllers\ConversationController;
         Route::post('/curated_playlist_tracks',[SourceAudioApiController::class,'curated_playlist_tracks']);
         Route::post('/link_search',[SourceAudioApiController::class,'link_search']);
         Route::post('/stems',[SourceAudioApiController::class,'stems']);
+
+        // Route::get('/target-messages', [BroadcastController::class, 'index']);
+        // Route::post('/target-messages', [BroadcastController::class, 'store']);
+        // Route::get('/target-messages/{id}', [BroadcastController::class, 'show']);
+
+
+
+        Route::get('target/new',    [BroadcastController::class, 'new']);
+        Route::get('target/active', [BroadcastController::class, 'active']);
+        Route::get('target/recent', [BroadcastController::class, 'recent']);
+        Route::get('target/all',    [BroadcastController::class, 'all']);
+        Route::post('/broadcast-schedules', [BroadcastController::class, 'Schedule']);
+        Route::get('/broadcast-schedules', [BroadcastController::class, 'Schedulelist']);
+       
     });
     Route::get('/tracks/list', [SourceAudioApiController::class, 'listTracks']);
     Route::post('/tracks/getTrackData',[SourceAudioApiController::class,'getTrackData']);
@@ -223,8 +238,3 @@ use App\Http\Controllers\ConversationController;
         Route::post('/create_ordiio_license_category',[OrdiioController::class,'create_license_category']);
         Route::post('/ordiio_stripe/webhook', [OrdiioController::class, 'webhook']);
         // Route::post('/ordiio_stripe/webhook', [OrdiioController::class, 'webhook_subs']);
-
-
-
-       
-       
