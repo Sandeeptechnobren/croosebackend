@@ -148,14 +148,24 @@ use App\Http\Controllers\BroadcastController;
         // Route::post('/target-messages', [BroadcastController::class, 'store']);
         // Route::get('/target-messages/{id}', [BroadcastController::class, 'show']);
 
-
-
-        Route::get('target/new',    [BroadcastController::class, 'new']);
-        Route::get('target/active', [BroadcastController::class, 'active']);
-        Route::get('target/recent', [BroadcastController::class, 'recent']);
-        Route::get('target/all',    [BroadcastController::class, 'all']);
-        Route::post('/broadcast-schedules', [BroadcastController::class, 'Schedule']);
-        Route::get('/broadcast-schedules', [BroadcastController::class, 'Schedulelist']);
+    
+    Route::prefix('broadcast')->group(function () {
+            Route::get('/list',        [BroadcastController::class, 'index']);
+            Route::get('/show{id}',    [BroadcastController::class, 'show']);
+            Route::post('/add',       [BroadcastController::class, 'store']);
+            Route::put('update/{id}',    [BroadcastController::class, 'update']);
+            Route::delete('delete/{id}', [BroadcastController::class, 'destroy']);
+        });
+    Route::prefix('target')->group(function () {
+        Route::get('/new',    [BroadcastController::class, 'new']);
+        Route::get('/active', [BroadcastController::class, 'active']);
+        Route::get('/recent', [BroadcastController::class, 'recent']);
+        Route::get('/all',    [BroadcastController::class, 'all']);
+     });    
+    Route::prefix('broadcast')->group(function () {    
+        Route::post('/schedules', [BroadcastController::class, 'Schedule']);
+        Route::get('/schedules', [BroadcastController::class, 'Schedulelist']);
+    });    
        
     });
     Route::get('/tracks/list', [SourceAudioApiController::class, 'listTracks']);
