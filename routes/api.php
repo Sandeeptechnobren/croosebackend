@@ -155,6 +155,8 @@ use App\Http\Controllers\BroadcastController;
         Route::post('/add',       [BroadcastController::class, 'store']);
         Route::put('update/{id}',    [BroadcastController::class, 'update']);
         Route::delete('delete/{id}', [BroadcastController::class, 'destroy']);
+        Route::post('/schedules', [BroadcastController::class, 'Schedule']);
+        Route::get('/schedules', [BroadcastController::class, 'Schedulelist']);
         });
     Route::prefix('target')->group(function () {
         Route::get('/new',    [BroadcastController::class, 'new']);
@@ -162,10 +164,7 @@ use App\Http\Controllers\BroadcastController;
         Route::get('/recent', [BroadcastController::class, 'recent']);
         Route::get('/all',    [BroadcastController::class, 'all']);
      });    
-    Route::prefix('broadcast')->group(function () {    
-        Route::post('/schedules', [BroadcastController::class, 'Schedule']);
-        Route::get('/schedules', [BroadcastController::class, 'Schedulelist']);
-    });    
+
        
     });
     Route::get('/tracks/list', [SourceAudioApiController::class, 'listTracks']);
