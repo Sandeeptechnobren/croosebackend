@@ -6,41 +6,17 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
         Schema::create('target_messages', function (Blueprint $table) {
-            $table->id();
-
-            $table->string('title')->nullable();
-            $table->text('message');
-
-            // message type / status
-            $table->enum('status', ['new', 'active', 'inactive'])
-                  ->default('new');
-
-            // targeting (future use)
-            $table->string('target_type')->nullable(); 
-            // example: all, user, role, group
-
-            $table->boolean('is_read')->default(false);
-
-            $table->timestamps();
-
-            // performance ke liye
-            $table->index('status');
-            $table->index('created_at');
-
+            $table->bigIncrements('id');
+            $table->string('name', 100);
+            $table->enum('target_type', ['new', 'active', 'recent', 'all']);
+            $table->string('description', 255)->nullable();
             $table->timestamps();
         });
     }
-    
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::dropIfExists('target_messages');

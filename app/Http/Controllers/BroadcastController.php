@@ -15,38 +15,32 @@ use App\Services\BroadcastService;
 class BroadcastController extends Controller
 {
      protected $service;
-
     public function __construct(BroadcastService $service)
     {
         $this->service = $service;
     }
-
     public function index()
     {
         return BroadcastResource::collection(
             $this->service->getAll()
         );
     }
-
     public function show($id)
     {
         return new BroadcastResource(
             $this->service->getById($id)
         );
     }
-
     public function store(BroadcastStoreRequest $request)
     {
         $broadcast = $this->service->create($request->validated());
         return new BroadcastResource($broadcast);
     }
-
     public function update(BroadcastUpdateRequest $request, $id)
     {
         $broadcast = $this->service->update($id, $request->validated());
         return new BroadcastResource($broadcast);
     }
-
     public function destroy($id)
     {
         $this->service->delete($id);
@@ -74,8 +68,8 @@ class BroadcastController extends Controller
             'data'    => $customers
         ]);
     }
-   public function recent()
-{
+       public function recent()
+    {
     $clientId = auth()->user()->client_id;
 
     $customers = Client::whereDate('created_at', '>=', now()->subDays(7))
@@ -92,7 +86,7 @@ class BroadcastController extends Controller
         'count'   => $customers->count(),
         'data'    => $customers
     ]);
-}
+    }
            public function all(Request $request)
     {
     $query = Client::query();
