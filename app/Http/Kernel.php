@@ -3,6 +3,7 @@
 namespace App\Http;
 
 use Illuminate\Foundation\Http\Kernel as HttpKernel;
+use Illuminate\Console\Scheduling\Schedule;
 
 class Kernel extends HttpKernel
 {
@@ -50,9 +51,10 @@ class Kernel extends HttpKernel
     //     $schedule->command('broadcast:send-scheduled')->everyMinute();
     // }
             protected function schedule(Schedule $schedule)
-       {
-           $schedule->command('broadcast:send')->everyMinute();
-       }
+        {
+            $schedule->command('broadcast:run')->everyMinute();
+        }
+        
 
 
 }

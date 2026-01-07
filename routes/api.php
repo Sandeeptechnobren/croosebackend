@@ -143,11 +143,6 @@ use App\Http\Controllers\BroadcastController;
         Route::post('/curated_playlist_tracks',[SourceAudioApiController::class,'curated_playlist_tracks']);
         Route::post('/link_search',[SourceAudioApiController::class,'link_search']);
         Route::post('/stems',[SourceAudioApiController::class,'stems']);
-
-        // Route::get('/target-messages', [BroadcastController::class, 'index']);
-        // Route::post('/target-messages', [BroadcastController::class, 'store']);
-        // Route::get('/target-messages/{id}', [BroadcastController::class, 'show']);
-
     
     Route::prefix('broadcast')->group(function () {
         Route::get('/list',        [BroadcastController::class, 'index']);
@@ -155,16 +150,10 @@ use App\Http\Controllers\BroadcastController;
         Route::post('/add',       [BroadcastController::class, 'store']);
         Route::put('update/{id}',    [BroadcastController::class, 'update']);
         Route::delete('delete/{id}', [BroadcastController::class, 'destroy']);
-        });
+        });    
     Route::prefix('target')->group(function () {
-        Route::get('/new',    [BroadcastController::class, 'new']);
-        Route::get('/active', [BroadcastController::class, 'active']);
-        Route::get('/recent', [BroadcastController::class, 'recent']);
-        Route::get('/all',    [BroadcastController::class, 'all']);
-     });    
-    Route::prefix('broadcast')->group(function () {    
-        Route::post('/schedules', [BroadcastController::class, 'Schedule']);
-        Route::get('/schedules', [BroadcastController::class, 'Schedulelist']);
+        Route::get('messages/{id}', [BroadcastController::class, 'customers']); 
+        Route::get('/list', [BroadcastController::class, 'targetlist']); 
     });    
        
     });
@@ -248,3 +237,16 @@ use App\Http\Controllers\BroadcastController;
         Route::post('/create_ordiio_license_category',[OrdiioController::class,'create_license_category']);
         Route::post('/ordiio_stripe/webhook', [OrdiioController::class, 'webhook']);
         // Route::post('/ordiio_stripe/webhook', [OrdiioController::class, 'webhook_subs']);
+    Route::post('/run-broadcast-cron', function (Request $request) {
+
+     if ($request->header('X-CRON-TOKEN') !== env('CRON_API_TOKEN')) {
+        return response()->json(['message' => 'Unauthorized'], 401);
+        }
+
+        Artisan::call('broadcast:run');
+
+        return response()->json([
+        'success' => true,
+        'message' => 'Broadcast cron executed successfully'
+        ]);
+    });
