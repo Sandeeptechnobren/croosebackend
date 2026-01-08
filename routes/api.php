@@ -26,7 +26,6 @@ use App\Http\Controllers\SubscriptionController;
 use App\Http\Controllers\DelaydogController;
 use App\Http\Controllers\ConversationController;
 use App\Http\Controllers\BroadcastController;
-
     Route::post('/register', [AuthController::class, 'register'])->name('register');
     Route::post('/login', [AuthController::class, 'login'])->name('login');
     Route::get('/clients', [AuthController::class, 'index'])->name('index');
@@ -49,15 +48,6 @@ use App\Http\Controllers\BroadcastController;
         Route::post('/services/bulkupload',[ServicesController::class, 'addbulkservices']);
         Route::delete('/services/{id}', [ServicesController::class, 'destroy']);
         Route::get('/getServicesBySpace',[ServicesController::class,'getServicesBySpace']);
-
-        //BroadcastController
-        Route::prefix('broadcast')->group(function () {
-            Route::get('/',        [BroadcastController::class, 'index']);
-            Route::get('/{id}',    [BroadcastController::class, 'show']);
-            Route::post('/',       [BroadcastController::class, 'store']);
-            Route::put('/{id}',    [BroadcastController::class, 'update']);
-            Route::delete('/{id}', [BroadcastController::class, 'destroy']);
-        });
 
         //products API
         Route::get('/products', [ProductsController::class, 'get_products']);
@@ -153,6 +143,19 @@ use App\Http\Controllers\BroadcastController;
         Route::post('/curated_playlist_tracks',[SourceAudioApiController::class,'curated_playlist_tracks']);
         Route::post('/link_search',[SourceAudioApiController::class,'link_search']);
         Route::post('/stems',[SourceAudioApiController::class,'stems']);
+    
+    Route::prefix('broadcast')->group(function () {
+        Route::get('/list',        [BroadcastController::class, 'index']);
+        Route::get('/show{id}',    [BroadcastController::class, 'show']);
+        Route::post('/add',       [BroadcastController::class, 'store']);
+        Route::put('update/{id}',    [BroadcastController::class, 'update']);
+        Route::delete('delete/{id}', [BroadcastController::class, 'destroy']);
+        });    
+    Route::prefix('target')->group(function () {
+        Route::get('messages/{id}', [BroadcastController::class, 'customers']); 
+        Route::get('/list', [BroadcastController::class, 'targetlist']); 
+    });    
+       
     });
     Route::get('/tracks/list', [SourceAudioApiController::class, 'listTracks']);
     Route::post('/tracks/getTrackData',[SourceAudioApiController::class,'getTrackData']);
@@ -234,9 +237,16 @@ use App\Http\Controllers\BroadcastController;
         Route::post('/create_ordiio_license_category',[OrdiioController::class,'create_license_category']);
         Route::post('/ordiio_stripe/webhook', [OrdiioController::class, 'webhook']);
         // Route::post('/ordiio_stripe/webhook', [OrdiioController::class, 'webhook_subs']);
+    Route::post('/run-broadcast-cron', function (Request $request) {
 
-        
-    
+     if ($request->header('X-CRON-TOKEN') !== env('CRON_API_TOKEN')) {
+        return response()->json(['message' => 'Unauthorized'], 401);
+        }
 
-       
-       
+        Artisan::call('broadcast:run');
+
+        return response()->json([
+        'success' => true,
+        'message' => 'Broadcast cron executed successfully'
+        ]);
+    });

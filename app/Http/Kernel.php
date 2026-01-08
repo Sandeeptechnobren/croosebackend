@@ -3,6 +3,7 @@
 namespace App\Http;
 
 use Illuminate\Foundation\Http\Kernel as HttpKernel;
+use Illuminate\Console\Scheduling\Schedule;
 
 class Kernel extends HttpKernel
 {
@@ -45,4 +46,15 @@ class Kernel extends HttpKernel
         'throttle' => \Illuminate\Routing\Middleware\ThrottleRequests::class,
         'verified' => \Illuminate\Auth\Middleware\EnsureEmailIsVerified::class,
     ];
+    //     protected function schedule(\Illuminate\Console\Scheduling\Schedule $schedule)
+    // {
+    //     $schedule->command('broadcast:send-scheduled')->everyMinute();
+    // }
+            protected function schedule(Schedule $schedule)
+        {
+            $schedule->command('broadcast:run')->everyMinute();
+        }
+        
+
+
 }

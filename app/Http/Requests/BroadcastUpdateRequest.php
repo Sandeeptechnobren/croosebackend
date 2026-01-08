@@ -17,7 +17,8 @@ class BroadcastUpdateRequest extends FormRequest
             'target_id' => 'integer|nullable',
             'frequency' => 'string|nullable',
             'content'   => 'string|nullable',
-            'user_id'   => 'integer|nullable'
+            'scheduled_at' => 'nullable|date'
+            
         ];
     }
 }

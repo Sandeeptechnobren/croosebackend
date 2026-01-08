@@ -18,8 +18,8 @@ class BroadcastStoreRequest extends FormRequest
         return [
             'target_id' => 'required|integer',
             'frequency' => 'required|string',
-            'content'   => 'required|string'
-            
+            'content'   => 'required|string',
+            'scheduled_at' => 'nullable|date'
         ];
     }
 }
