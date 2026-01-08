@@ -12,10 +12,18 @@ class BroadcastHeader extends Model
     protected $fillable = [
         'target_id',
         'frequency',
+        'scheduled_at',
         'content',
-        'user_id',
         'created_by',
         'updated_by',
         'deleted_by'
     ];
+    protected $casts = [
+    'scheduled_at' => 'date',
+];
+
+    public function target()
+    {
+        return $this->belongsTo(TargetMessage::class, 'target_id');
+    }
 }

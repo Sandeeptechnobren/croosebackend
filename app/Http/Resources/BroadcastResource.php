@@ -12,6 +12,7 @@ class BroadcastResource extends JsonResource
             'id'         => $this->id,
             'target_id'  => $this->target_id,
             'frequency'  => $this->frequency,
+            'scheduled_at' => $this->scheduled_at,
             'content'    => $this->content,
             'created_by' => $this->created_by,
             'updated_by' => $this->updated_by,
