@@ -146,7 +146,7 @@ use App\Http\Controllers\BroadcastController;
     
     Route::prefix('broadcast')->group(function () {
         Route::get('/list',        [BroadcastController::class, 'index']);
-        Route::get('/show{id}',    [BroadcastController::class, 'show']);
+        Route::get('/show/{id}',    [BroadcastController::class, 'show']);
         Route::post('/add',       [BroadcastController::class, 'store']);
         Route::put('update/{id}',    [BroadcastController::class, 'update']);
         Route::delete('delete/{id}', [BroadcastController::class, 'destroy']);
