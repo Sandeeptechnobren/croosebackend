@@ -14,4 +14,8 @@ class ClientCustomer extends Model
         'customer_id',
         'first_interaction_at',
     ];
+    public function customer()
+    {
+        return $this->belongsTo(Customer::class, 'customer_id');
+    }
 }

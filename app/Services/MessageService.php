@@ -4,17 +4,18 @@ namespace App\Services;
 
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use App\Helpers\TargetCustomers;
+use Illuminate\Support\Facades\Auth;
+use App\Models\Space_whapichannel_details;
 
 class MessageService
 {
-    public static function send(string $phone, string $message): bool
+public static function send(string $phone, string $message): bool
     {
         if (empty($phone)) {
             Log::error('WHAPI: phone missing');
             return false;
         }
-
-        // number clean (India)
         $phone = preg_replace('/\D/', '', $phone);
         if (strlen($phone) === 10) {
             $phone = '91' . $phone;
@@ -41,4 +42,27 @@ class MessageService
             return false;
         }
     }
+public function sendScheduledMessages($targetId, $message,$spaceId)
+{
+    $user = Auth::user();
+    $whapi_token=Space_whapichannel_details::where('space_id',$spaceId)->value('token');
+    $customers = TargetCustomers::getCustomersByTargetMessageId($targetId, $user->id,$spaceId);
+    foreach ($customers as $phone) {
+        if (!$phone) {
+            continue;
+        }
+        $phone = ltrim($phone, '+');
+        Http::withHeaders([
+            'Authorization' => 'Bearer ' . $whapi_token,
+            'Content-Type'  => 'application/json',
+        ])->post('https://gate.whapi.cloud/messages/text', [
+            'to'   => $phone,
+            'body' => $message,
+        ]);
+    }
+    return response()->json([
+        'status'  => 'success',
+        'message' => 'Messages sent successfully',
+    ]);
+}
 }

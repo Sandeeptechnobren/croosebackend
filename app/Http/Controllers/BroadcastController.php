@@ -10,14 +10,17 @@ use App\Http\Requests\BroadcastStoreRequest;
 use App\Http\Requests\BroadcastUpdateRequest;
 use App\Http\Resources\BroadcastResource;
 use App\Services\BroadcastService;
+use App\Services\MessageService;
 
 
 class BroadcastController extends Controller
 {
-     protected $service;
-    public function __construct(BroadcastService $service)
+    protected $service;
+    protected $messageservice;
+    public function __construct(BroadcastService $service, MessageService $messageservice)
     {
         $this->service = $service;
+        $this->messageservice = $messageservice;
     }
     public function index()
     {
@@ -76,5 +79,14 @@ class BroadcastController extends Controller
             'count' => $targets->count(),
             'data' => $targets,
         ]);
+    }
+    public function sendMessage(Request $request){
+        $validate=$request->validate([
+           'targetId'=>'required|integer|exists:target_messages,id',
+           'spaceId'=>'required|integer|exists:spaces,id',
+           'message'=>'required|string',
+        ]);
+        $this->messageservice->sendScheduledMessages($targetId=$validate['targetId'],$message=$validate['message'],$spaceId=$validate['spaceId']);   
+        return response()->json(['message'=>'Messages are being sent.']);
     }
 }
