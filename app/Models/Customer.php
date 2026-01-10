@@ -36,6 +36,10 @@ class Customer extends Model
                         ->withPivot('first_interaction_at', 'source')
                         ->withTimestamps();
         }
+    public function orders()
+    {
+        return $this->hasMany(Order::class);
+    }
 
 
 }

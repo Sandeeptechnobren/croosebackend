@@ -29,7 +29,7 @@ use App\Http\Controllers\BroadcastController;
     Route::post('/register', [AuthController::class, 'register'])->name('register');
     Route::post('/login', [AuthController::class, 'login'])->name('login');
     Route::get('/clients', [AuthController::class, 'index'])->name('index');
-    Route::get('/getUserData',[OrdiioController::class,'getUserData']);
+    // Route::get('/getUserData',[OrdiioController::class,'getUserData']);
     Route::post('/send_otp', [AuthController::class, 'sendOtpEmail']);
     Route::post('/reset_password',[AuthController::class,'reset_password_viasecurity']);
     Route::post('/ordiio/forgot-password',[AuthController::class,'forgot_password_ordiio']);
@@ -112,38 +112,37 @@ use App\Http\Controllers\BroadcastController;
         Route::get('/subscriber_statistics',[SubscriptionController::class,'subscriber_statistics']);
 
         //ordiio_controller 
-        Route::post('/ordiio_logout',[OrdiioController::class,'logout']);
-        Route::get('/get_license_category',[OrdiioController::class,'get_license_category']); 
-        Route::post('/purchase_ordiio_license',[OrdiioController::class,'purchase_ordiio_license']);
-        Route::post('/purchase_ordiio_subscription',[OrdiioController::class,'purchase_ordiio_subscription']);
-        Route::get('/get-signed-url/{trackId}', [SourceAudioApiController::class, 'getSignedUrl']);
-        Route::post('/add_to_favourites',[OrdiioFavouritesController::class,'addToFavourites']);
-        Route::get('/deleteFavourites/{id}',[OrdiioFavouritesController::class,'deleteFavourites']);
-        Route::post('/add_to_cart',[OrdiioCartController::class,'addToCart']);
-        Route::post('/get_favourite_tracks',[OrdiioFavouritesController::class,'getFavourites']);
-        Route::post('/get_cart_details',[OrdiioCartController::class,'getCartDetails']);
-        Route::post('/create_playlist',[OrdiioPlaylistsController::class,'createPlaylist']);
-        Route::post('/deletefromPlaylist',[OrdiioPlaylistsController::class,'deletefromPlaylist']);
-        Route::get('/get_playlist',[OrdiioPlaylistsController::class,'getPlaylist']);
-        Route::post('/add_to_playlist',[OrdiioPlaylistsController::class,'addToPlaylist']);
-        Route::post('/get_playlist_tracks',[OrdiioPlaylistsController::class,'getPlaylisttracks']);
-        // Route::post('/getTrackDetails/{trackId}',[OrdiioFavouritesController::class,'getTrackDetails']);
-        Route::post('/isSubscriber',[OrdiioController::class,'isSubscriber']);
-        Route::post('/isdownloadable',[OrdiioController::class,'isdownloadable']);
-        Route::post('/reset_password',[OrdiioController::class,'reset_password']);
-        Route::post('/update_company_type',[OrdiioController::class,'update_company_type']);
-        Route::post('/about_artist',[SourceAudioApiController::class,'about_artist']);
-        Route::post('/make_as_subscriber',[OrdiioController::class,'make_as_subscriber']);
-        Route::post('/download_track',[OrdiioController::class,'download_track']);
-        Route::post('/licensed_tracks',[SourceAudioApiController::class,'licensed_tracks']);
-        Route::post('/museAIsearch',[SourceAudioApiController::class,'museAIsearch']);
-        Route::post('/youtube_allowlist',[Ordiio_settings_controller::class,'youtube_allowlist']);
-        Route::post('/whitelist_data',[Ordiio_settings_controller::class,'whitelist_data']);
-        Route::post('/whitelist_data_remove',[Ordiio_settings_controller::class,'whitelist_data_remove']);
-        Route::post('/curated_playlist_tracks',[SourceAudioApiController::class,'curated_playlist_tracks']);
-        Route::post('/link_search',[SourceAudioApiController::class,'link_search']);
-        Route::post('/stems',[SourceAudioApiController::class,'stems']);
-    
+        // Route::post('/ordiioLogout',[OrdiioController::class,'logout']);
+        // Route::get('/get_license_category',[OrdiioController::class,'get_license_category']); 
+        // Route::post('/purchase_ordiio_license',[OrdiioController::class,'purchase_ordiio_license']);
+        // Route::post('/purchase_ordiio_subscription',[OrdiioController::class,'purchase_ordiio_subscription']);
+        // Route::get('/get-signed-url/{trackId}', [SourceAudioApiController::class, 'getSignedUrl']);
+        // Route::post('/add_to_favourites',[OrdiioFavouritesController::class,'addToFavourites']);
+        // Route::get('/deleteFavourites/{id}',[OrdiioFavouritesController::class,'deleteFavourites']);
+        // Route::post('/add_to_cart',[OrdiioCartController::class,'addToCart']);
+        // Route::post('/get_favourite_tracks',[OrdiioFavouritesController::class,'getFavourites']);
+        // Route::post('/get_cart_details',[OrdiioCartController::class,'getCartDetails']);
+        // Route::post('/create_playlist',[OrdiioPlaylistsController::class,'createPlaylist']);
+        // Route::post('/deletefromPlaylist',[OrdiioPlaylistsController::class,'deletefromPlaylist']);
+        // Route::get('/get_playlist',[OrdiioPlaylistsController::class,'getPlaylist']);
+        // Route::post('/add_to_playlist',[OrdiioPlaylistsController::class,'addToPlaylist']);
+        // Route::post('/get_playlist_tracks',[OrdiioPlaylistsController::class,'getPlaylisttracks']);
+        // // Route::post('/getTrackDetails/{trackId}',[OrdiioFavouritesController::class,'getTrackDetails']);
+        // Route::post('/isSubscriber',[OrdiioController::class,'isSubscriber']);
+        // Route::post('/isdownloadable',[OrdiioController::class,'isdownloadable']);
+        // Route::post('/reset_password',[OrdiioController::class,'reset_password']);
+        // Route::post('/update_company_type',[OrdiioController::class,'update_company_type']);
+        // Route::post('/about_artist',[SourceAudioApiController::class,'about_artist']);
+        // Route::post('/make_as_subscriber',[OrdiioController::class,'make_as_subscriber']);
+        // Route::post('/download_track',[OrdiioController::class,'download_track']);
+        // Route::post('/licensed_tracks',[SourceAudioApiController::class,'licensed_tracks']);
+        // Route::post('/museAIsearch',[SourceAudioApiController::class,'museAIsearch']);
+        // Route::post('/youtube_allowlist',[Ordiio_settings_controller::class,'youtube_allowlist']);
+        // Route::post('/whitelist_data',[Ordiio_settings_controller::class,'whitelist_data']);
+        // Route::post('/whitelist_data_remove',[Ordiio_settings_controller::class,'whitelist_data_remove']);
+        // Route::post('/curated_playlist_tracks',[SourceAudioApiController::class,'curated_playlist_tracks']);
+        // Route::post('/link_search',[SourceAudioApiController::class,'link_search']);
+        // Route::post('/stems',[SourceAudioApiController::class,'stems']);
     Route::prefix('broadcast')->group(function () {
         Route::get('/list',        [BroadcastController::class, 'index']);
         Route::get('/show/{id}',    [BroadcastController::class, 'show']);
@@ -154,24 +153,13 @@ use App\Http\Controllers\BroadcastController;
     Route::prefix('target')->group(function () {
         Route::get('messages/{id}', [BroadcastController::class, 'customers']); 
         Route::get('/list', [BroadcastController::class, 'targetlist']); 
-    });    
+    });  
+    Route::post('/sendBroadcastMessage', [BroadcastController::class, 'sendMessage']);  
+    Route::get('/Message/{phone}', [BroadcastController::class, 'getChat']);
+    Route::post('/sendWhatsapp', [BroadcastController::class, 'sendtext']);
        
     });
-    Route::get('/tracks/list', [SourceAudioApiController::class, 'listTracks']);
-    Route::post('/tracks/getTrackData',[SourceAudioApiController::class,'getTrackData']);
-    Route::get('/tracks/list/filter', [SourceAudioApiController::class, 'listTracks_filter']); 
-    Route::post('/sonic-search', [OrdiioController::class, 'sonicSearch']);
-    Route::post('/similar_search', [SourceAudioApiController::class, 'similar_search']);
-    Route::post('/playlists', [SourceAudioApiController::class, 'get_playlists']);
-    Route::post('/get_playlists_thematic_albums', [SourceAudioApiController::class, 'get_playlists_thematic_albums']);
-    Route::post('/get_playlists_album_track', [SourceAudioApiController::class, 'get_playlists_album_track']);
-    Route::get('/customFilters',[OrdiioFilterController::class,'listTracksFilter']);
 
- 
-    // Route::get('/run_agent/{uuid}',[WhapiController::class,'run_agent']);
-
-   //---------------------------------------------------------------------------------------------------------------------------------
-     //customerend
         Route::get('/orders/{client_phone}/{customer_phone}', [OrderController::class, 'indexByPhone']);
         Route::get('/appointments/{space_phone}/{customer_phone}', [AppointmentController::class, 'getAppointments']);
         Route::post('/appointments/{space_phone}/{customer_phone}', [AppointmentController::class, 'storeappointment']);
@@ -228,25 +216,15 @@ use App\Http\Controllers\BroadcastController;
         Route::post('/delaydogclaims/{user_phone}/{journey_uuid}',[DelaydogController::class,'delaydogclaims']);
         Route::post('/delaydogtickets',[DelaydogController::class,'delayDogTickets']);
 
-        //
-        // OrdiioController
 
-        Route::post('/User_register',[OrdiioController::class,'registerUser']);
-        Route::post('/User_login',[OrdiioController::class,'loginUser']);
-        Route::get('/ordiio-token-check', [OrdiioController::class, 'verifyToken']);
-        Route::post('/create_ordiio_license_category',[OrdiioController::class,'create_license_category']);
-        Route::post('/ordiio_stripe/webhook', [OrdiioController::class, 'webhook']);
-        // Route::post('/ordiio_stripe/webhook', [OrdiioController::class, 'webhook_subs']);
-    Route::post('/run-broadcast-cron', function (Request $request) {
-
-     if ($request->header('X-CRON-TOKEN') !== env('CRON_API_TOKEN')) {
-        return response()->json(['message' => 'Unauthorized'], 401);
-        }
-
-        Artisan::call('broadcast:run');
-
-        return response()->json([
-        'success' => true,
-        'message' => 'Broadcast cron executed successfully'
-        ]);
-    });
+        Route::post('/run-broadcast-cron', function (Request $request) {
+            
+        if ($request->header('X-CRON-TOKEN') !== env('CRON_API_TOKEN')) {
+            return response()->json(['message' => 'Unauthorized'], 401);
+            }
+            Artisan::call('broadcast:run');
+            return response()->json([
+            'success' => true,
+            'message' => 'Broadcast cron executed successfully'
+            ]);
+        });
