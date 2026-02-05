@@ -2,6 +2,7 @@
 use Illuminate\Support\Facades\Route;
 use Illuminate\Http\Request;
 use App\Http\Controllers\API\AuthController;
+use App\Http\Controllers\ChatController;
 use App\Http\Controllers\ServicesController;
 use App\Http\Controllers\ProductsController;
 use App\Http\Controllers\CustomerController;
@@ -23,11 +24,15 @@ use App\Http\Controllers\WhapiController;
 use App\Http\Controllers\OrdiioApiController\OrdiioFilterController;
 use App\Http\Controllers\paymentController;
 use App\Http\Controllers\SubscriptionController;
+use App\Http\Controllers\API\SubscriptionsController;
 use App\Http\Controllers\DelaydogController;
 use App\Http\Controllers\ConversationController;
 use App\Http\Controllers\BroadcastController;
+ use App\Http\Controllers\API\FeedBackController;
+
     Route::post('/register', [AuthController::class, 'register'])->name('register');
     Route::post('/login', [AuthController::class, 'login'])->name('login');
+    Route::post('/reset-password', [AuthController::class, 'resetPassword']);
     Route::get('/clients', [AuthController::class, 'index'])->name('index');
     // Route::get('/getUserData',[OrdiioController::class,'getUserData']);
     Route::post('/send_otp', [AuthController::class, 'sendOtpEmail']);
@@ -39,6 +44,7 @@ use App\Http\Controllers\BroadcastController;
     Route::middleware('auth:sanctum')->group(function () 
     {
         Route::post('/account_profile',[ClientsController::class,'account_profile']);
+        Route::post('/account/profile/update',[ClientsController::class,'updateAccountProfile']);
         Route::post('/update_password',[ClientsController::class,'update_password']);
         Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
         Route::post('/services/show', [ServicesController::class, 'showById']);
@@ -111,38 +117,13 @@ use App\Http\Controllers\BroadcastController;
         Route::get('/subscribers_list',[SubscriptionController::class,'subscribers_list']);
         Route::get('/subscriber_statistics',[SubscriptionController::class,'subscriber_statistics']);
 
-        //ordiio_controller 
-        // Route::post('/ordiioLogout',[OrdiioController::class,'logout']);
-        // Route::get('/get_license_category',[OrdiioController::class,'get_license_category']); 
-        // Route::post('/purchase_ordiio_license',[OrdiioController::class,'purchase_ordiio_license']);
-        // Route::post('/purchase_ordiio_subscription',[OrdiioController::class,'purchase_ordiio_subscription']);
-        // Route::get('/get-signed-url/{trackId}', [SourceAudioApiController::class, 'getSignedUrl']);
-        // Route::post('/add_to_favourites',[OrdiioFavouritesController::class,'addToFavourites']);
-        // Route::get('/deleteFavourites/{id}',[OrdiioFavouritesController::class,'deleteFavourites']);
-        // Route::post('/add_to_cart',[OrdiioCartController::class,'addToCart']);
-        // Route::post('/get_favourite_tracks',[OrdiioFavouritesController::class,'getFavourites']);
-        // Route::post('/get_cart_details',[OrdiioCartController::class,'getCartDetails']);
-        // Route::post('/create_playlist',[OrdiioPlaylistsController::class,'createPlaylist']);
-        // Route::post('/deletefromPlaylist',[OrdiioPlaylistsController::class,'deletefromPlaylist']);
-        // Route::get('/get_playlist',[OrdiioPlaylistsController::class,'getPlaylist']);
-        // Route::post('/add_to_playlist',[OrdiioPlaylistsController::class,'addToPlaylist']);
-        // Route::post('/get_playlist_tracks',[OrdiioPlaylistsController::class,'getPlaylisttracks']);
-        // // Route::post('/getTrackDetails/{trackId}',[OrdiioFavouritesController::class,'getTrackDetails']);
-        // Route::post('/isSubscriber',[OrdiioController::class,'isSubscriber']);
-        // Route::post('/isdownloadable',[OrdiioController::class,'isdownloadable']);
-        // Route::post('/reset_password',[OrdiioController::class,'reset_password']);
-        // Route::post('/update_company_type',[OrdiioController::class,'update_company_type']);
-        // Route::post('/about_artist',[SourceAudioApiController::class,'about_artist']);
-        // Route::post('/make_as_subscriber',[OrdiioController::class,'make_as_subscriber']);
-        // Route::post('/download_track',[OrdiioController::class,'download_track']);
-        // Route::post('/licensed_tracks',[SourceAudioApiController::class,'licensed_tracks']);
-        // Route::post('/museAIsearch',[SourceAudioApiController::class,'museAIsearch']);
-        // Route::post('/youtube_allowlist',[Ordiio_settings_controller::class,'youtube_allowlist']);
-        // Route::post('/whitelist_data',[Ordiio_settings_controller::class,'whitelist_data']);
-        // Route::post('/whitelist_data_remove',[Ordiio_settings_controller::class,'whitelist_data_remove']);
-        // Route::post('/curated_playlist_tracks',[SourceAudioApiController::class,'curated_playlist_tracks']);
-        // Route::post('/link_search',[SourceAudioApiController::class,'link_search']);
-        // Route::post('/stems',[SourceAudioApiController::class,'stems']);
+        Route::prefix('subscriptions')->group(function () {
+        Route::get('/', [SubscriptionController::class, 'index']);
+        Route::put('{id}', [SubscriptionController::class, 'update']);
+        Route::post('{id}/archive', [SubscriptionController::class, 'archive']);
+        Route::post('{id}/unarchive',[SubscriptionController::class,'unarchive']);
+        Route::delete('{id}', [SubscriptionController::class, 'destroy']);
+        });
     Route::prefix('broadcast')->group(function () {
         Route::get('/list',        [BroadcastController::class, 'index']);
         Route::get('/show{id}',    [BroadcastController::class, 'show']);
@@ -150,13 +131,19 @@ use App\Http\Controllers\BroadcastController;
         Route::put('update/{id}',    [BroadcastController::class, 'update']);
         Route::delete('delete/{id}', [BroadcastController::class, 'destroy']);
         });    
+        Route::get('/user-status/{id}', [BroadcastController::class, 'userStatus']);
+        Route::post('/typing-start', [BroadcastController::class, 'typingStart']);
+        Route::post('/typing-stop', [BroadcastController::class, 'typingStop']);
+
     Route::prefix('target')->group(function () {
         Route::get('messages/{id}', [BroadcastController::class, 'customers']); 
         Route::get('/list', [BroadcastController::class, 'targetlist']); 
     });  
     Route::post('/sendBroadcastMessage', [BroadcastController::class, 'sendMessage']);  
-       
-       
+    Route::get('/Message/{phone}', [BroadcastController::class, 'getChat']);
+    Route::post('/sendWhatsapp', [BroadcastController::class, 'sendtext']);
+
+    Route::post('/chat', [ChatController::class, 'chat']);
     });
 
         Route::get('/orders/{client_phone}/{customer_phone}', [OrderController::class, 'indexByPhone']);
@@ -207,8 +194,8 @@ use App\Http\Controllers\BroadcastController;
         Route::post('/stripe/webhook', [TransactionController::class, 'handleWebhook']);
         // Route::get('/paystack/testorder/{uuid}', [PayStackController::class, 'initializeAppointmenttest']);
         
-        
-        
+        Route::post('/subscribe/{uuid}/{phone}', [SubscriptionsController::class, 'pay']);
+        Route::post('/stripe/webhook', [SubscriptionsController::class, 'handle']);
         
         Route::post('/delaydogusers/{user_phone}',[DelaydogController::class,'delaydogusers']);
         Route::post('/delaydogjourney/{user_phone}',[DelaydogController::class,'delaydogjourney']);
@@ -227,3 +214,16 @@ use App\Http\Controllers\BroadcastController;
             'message' => 'Broadcast cron executed successfully'
             ]);
         });
+
+        Route::get('/stripe-checkout/{uuid}/{phone}', [SubscriptionsController::class, 'redirectToStripe']);
+        Route::post('/stripe/webhook', [SubscriptionsController::class, 'handle']);
+        Route::get('/stripe/success', [SubscriptionsController::class, 'successFallback']);
+
+
+Route::prefix('complain')->group(function () {
+    Route::get('/list', [FeedBackController::class, 'index']);
+    Route::post('/add', [FeedBackController::class, 'store']);
+    Route::get('show/{id}', [FeedBackController::class, 'show']);
+    Route::post('update/{id}', [FeedBackController::class, 'update']);
+    Route::delete('delete/{id}', [FeedBackController::class, 'destroy']);
+});
