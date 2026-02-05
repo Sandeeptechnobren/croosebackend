@@ -17,24 +17,26 @@ use App\Http\Controllers\SpaceController;
 use Illuminate\Support\Facades\Storage;
 class ClientsController extends Controller
 {
-    public function countries()
-            {
-                    $countries = Country::all()->map(function ($country) {
-                    $code = strtolower($country->country_code);
-                    return [
-                        'id'   => $country->id,
-                        'name' => $country->country_name,
-                        'code' => strtoupper($country->country_code),
-                        'flag' => asset("vendor/blade-flags/country-{$code}.svg"),
-                    ];
-                });
+   public function countries()
+{
+    $countries = Country::all()->map(function ($country) {
+        $code = strtolower($country->country_code);
 
-                return response()->json([
-                    'status'  => 200,
-                    'data'    => $countries,
-                    'message' => 'Countries List',
-                ]);
-            }
+        return [
+            'id'   => $country->id,
+            'name' => $country->country_name,
+            'code' => strtoupper($country->country_code),
+            'flag' => "https://flagcdn.com/w20/{$code}.png",
+        ];
+    });
+
+    return response()->json([
+        'status'  => 200,
+        'data'    => $countries,
+        'message' => 'Countries List',
+    ]);
+}
+
     public function getClientWithProducts($phone_number)
         {
             $client = DB::table('clients')->where('phone_number', $phone_number)->first();
@@ -111,6 +113,52 @@ public function verifyToken(Request $request)
 
         }
 
+        public function updateAccountProfile(Request $request)
+        {
+            $client = Auth::user(); // token se logged-in client
+        
+            // ✅ Validation (photo OPTIONAL)
+            $request->validate([
+                'name'              => 'required|string|max:255',
+                'business_name'     => 'required|string|max:255',
+                'business_location' => 'required|string|max:255',
+                'photo'             => 'nullable|image|mimes:jpg,jpeg,png|max:1024',
+            ]);
+        
+            // ✅ Update basic fields
+            $client->name              = $request->name;
+            $client->business_name     = $request->business_name;
+            $client->business_location = $request->business_location;
+        
+            // ✅ Photo update ONLY if new photo sent
+            if ($request->hasFile('photo')) {
+        
+                // old photo delete
+                if ($client->profile_photo && Storage::disk('public')->exists($client->profile_photo)) {
+                    Storage::disk('public')->delete($client->profile_photo);
+                }
+        
+                // store new photo
+                $path = $request->file('photo')->store('profile_photo', 'public');
+                $client->profile_photo = $path;
+            }
+        
+            $client->save();
+        
+            return response()->json([
+                'status'  => true,
+                'message' => 'Account profile updated successfully',
+                'data'    => [
+                    'id'                => $client->id,
+                    'name'              => $client->name,
+                    'business_name'     => $client->business_name,
+                    'business_location' => $client->business_location,
+                    'email'             => $client->email, // sirf show
+                    'profile_photo'     => $client->profile_photo,
+                ]
+            ]);
+        }
+        
 public function update_password(Request $request){
     $user=Auth::user();   
     $validated=$request->validate([

@@ -8,7 +8,7 @@ class BroadcastService
 {
     public function getAll()
     {
-        return BroadcastHeader::latest()->paginate(10);
+        return BroadcastHeader::latest()->get();
     }
 
     public function getById($id)

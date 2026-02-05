@@ -11,33 +11,49 @@ use App\Models\Customer;
 
 class paymentController extends Controller
 {
-public function payment_details(Request $response)
-{
+    public function payment_details(Request $request)
+    {
     $client_id = Auth::user()->id;
+    $query = Transaction::where('client_id', $client_id);
+    if ($request->filled('status')) {
+        $status = trim(strtolower($request->status));
 
-    $transactions = Transaction::where('client_id', $client_id)
-        ->whereNotNull('transaction_id')
-        ->orderBy('created_at', 'desc')
-        ->get(['type','reference_id','amount','payment_origin','payment_method','transaction_status','transaction_id','created_at'])
-        ->map(function ($transaction) {
-            return [
-                'type'              => $transaction->type,
-                'reference_id'      => $transaction->reference_id,
-                'amount'            => $transaction->amount,
-                'payment_origin'    => $transaction->payment_origin,
-                'payment_method'    => $transaction->payment_method,
-                'transaction_status'=> $transaction->transaction_status,
-                'transaction_id'    => $transaction->transaction_id,
-                'created_at'        => $transaction->created_at->toDateTimeString(),
-
-            ];
-        });
-
+        $query->whereRaw(
+            'TRIM(LOWER(transaction_status)) = ?',
+            [$status]
+        );
+    }
+    $transactions = $query->orderBy('id', 'desc')->get();
+    $data = $transactions->map(function ($transaction) {
+        $referenceData = null;
+        switch (strtolower($transaction->type)) {
+            case 'order':
+                $referenceData = Order::find($transaction->reference_id);
+                break;
+            case 'appointment':
+                $referenceData = Appointment::find($transaction->reference_id);
+                break;
+            case 'customer':
+                $referenceData = Customer::find($transaction->reference_id);
+                break;
+        }
+        return [
+            'type'               => $transaction->type,
+            'reference_id'       => $transaction->reference_id,
+            'reference_data'     => $referenceData,
+            'amount'             => $transaction->amount,
+            'payment_origin'     => $transaction->payment_origin,
+            'payment_method'     => $transaction->payment_method,
+            'transaction_status'=> $transaction->transaction_status,
+            'transaction_id'     => $transaction->transaction_id,
+            'created_at'         => optional($transaction->created_at)->toDateTimeString(),
+        ];
+    });
     return response()->json([
         'status'  => true,
-        'data'    => $transactions,
-        'message' => "transaction data"
+        'data'    => $data,
+        'message' => 'transaction data'
     ]);
-}
+    }
 
 }

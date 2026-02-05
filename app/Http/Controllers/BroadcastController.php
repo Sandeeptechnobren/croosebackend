@@ -11,6 +11,8 @@ use App\Http\Requests\BroadcastUpdateRequest;
 use App\Http\Resources\BroadcastResource;
 use App\Services\BroadcastService;
 use App\Services\MessageService;
+use App\Events\UserTyping;
+use Illuminate\Support\Facades\Cache;
 
 
 class BroadcastController extends Controller
@@ -52,9 +54,7 @@ class BroadcastController extends Controller
      public function customers($id)
     {
         $targetMessage = TargetMessage::findOrFail($id);
-
         $customers = $targetMessage->customers();
-
         return response()->json([
             'success' => true,
             'target_type' => $targetMessage->target_type,
@@ -88,5 +88,54 @@ class BroadcastController extends Controller
         ]);
         $this->messageservice->sendScheduledMessages($targetId=$validate['targetId'],$message=$validate['message'],$spaceId=$validate['spaceId']);   
         return response()->json(['message'=>'Messages are being sent.']);
+
     }
+         public function getChat(Request $request, $phone)
+    {
+    $spaceId = (int) $request->get('space_id');
+    if (!$spaceId) {
+        return response()->json([
+            'success' => false,
+            'message' => 'space_id is required'
+        ], 400);
+    }
+    $result = $this->messageservice->getChatByPhone(
+        $spaceId,
+        $phone
+    );
+    return response()->json($result, $result['success'] ? 200 : 400);
+    }
+public function sendtext(Request $request, Messageservice $whapi)
+   {
+    $request->validate([
+        'space_id' => 'required|integer',
+        'phone'    => 'required',
+        'message'  => 'required|string'
+    ]);
+
+    return $whapi->sendText(
+        $request->space_id,
+        $request->phone,
+        $request->message
+    );
+   }
+   public function userStatus($id)
+{
+    return response()->json([
+        'user_id' => $id,
+        'online' => Cache::has('user-online-'.$id)
+    ]);
+}
+public function typingStart(Request $request)
+{
+    broadcast(new UserTyping(auth()->id(), $request->to_id, true));
+
+    return response()->json(['typing' => true]);
+}
+public function typingStop(Request $request)
+{
+    broadcast(new UserTyping(auth()->id(), $request->to_id, false));
+
+    return response()->json(['typing' => false]);
+}
 }
