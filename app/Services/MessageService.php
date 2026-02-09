@@ -11,7 +11,7 @@ use App\Models\Space_whapichannel_details;
 
 class MessageService
 {
-public static function send(string $phone, string $message): bool
+    public static function send(string $phone, string $message): bool
     {
         if (empty($phone)) {
             Log::error('WHAPI: phone missing');
@@ -43,16 +43,46 @@ public static function send(string $phone, string $message): bool
             return false;
         }
     }
-         public function sendScheduledMessages($targetId, $message,$spaceId)
-    {
+
+// public function sendScheduledMessages($targetId, $message,$spaceId)
+// {
+//     $user = Auth::user();
+//     $customers = TargetCustomers::getCustomersByTargetMessageId($targetId, $user->id,$spaceId);
+//     dd($customers);
+//     foreach ($customers as $clientCustomer) {
+        
+//         if (!$clientCustomer->customer || !$clientCustomer->customer->whatsapp_number) {
+//             continue;
+//         }
+//         $phone = ltrim($clientCustomer->customer->whatsapp_number, '+');
+//         Http::withHeaders([
+//             'Authorization' => 'Bearer ' . config('services.whapi.token'),
+//             'Content-Type'  => 'application/json',
+//         ])->post('https://gate.whapi.cloud/messages/text', [
+//             'to'   => $phone,
+//             'body' => $message,
+//         ]);
+//     }
+//     return response()->json([
+//         'status'  => 'success',
+//         'message' => 'Messages sent successfully',
+//     ]);
+// }
+
+public function sendScheduledMessages($targetId, $message,$spaceId)
+{
     $user = Auth::user();
     $whapi_token=Space_whapichannel_details::where('space_id',$spaceId)->value('token');
+    
     $customers = TargetCustomers::getCustomersByTargetMessageId($targetId, $user->id,$spaceId);
     foreach ($customers as $phone) {
+
         if (!$phone) {
             continue;
         }
+
         $phone = ltrim($phone, '+');
+
         Http::withHeaders([
             'Authorization' => 'Bearer ' . $whapi_token,
             'Content-Type'  => 'application/json',
@@ -65,13 +95,12 @@ public static function send(string $phone, string $message): bool
         'status'  => 'success',
         'message' => 'Messages sent successfully',
     ]);
-    }
-
+}
+  
     protected function token(int $spaceId): ?string
     {
         return Space_whapichannel_details::where('space_id', $spaceId)->value('token');
     }
-
     public function getChatByPhone(int $spaceId, string $phone, int $count = 100): array
     {
         $token = $this->token($spaceId);
@@ -91,8 +120,7 @@ public static function send(string $phone, string $message): bool
             : ['success' => false, 'message' => 'WHAPI request failed', 'error' => $res->json()];
     }
 
-
-       public function sendText(int $spaceId, string $to, string $body)
+public function sendText(int $spaceId, string $to, string $body)
    {
     $token = $this->token($spaceId);
     if (!$token) {
@@ -116,4 +144,3 @@ public static function send(string $phone, string $message): bool
     return $res->json();
    }
 }
-

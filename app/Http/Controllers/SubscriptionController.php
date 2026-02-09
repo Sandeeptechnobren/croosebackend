@@ -29,7 +29,7 @@ public function getSubscriptionlist(Request $request)
                     'space_name'        => $subscription->space ? $subscription->space->name : null,
                     'name'              => $subscription->name,
                     'subscription_type' => $subscription->subscription_type,
-                    'description'    => $subscription->description,
+                    'description'       => $subscription->description,
                     'variant'           => $subscription->variant,
                     'price'             => $subscription->price,
                     'status'            => $subscription->status,
@@ -66,7 +66,10 @@ public function createsubscription(Request $request)
 {
     try {
         $client_id = Auth::user()->id;
-        
+        $request->merge([
+        'subscription_name' => $request->name,
+        'price_per_month'  => $request->price,
+        ]);
         $validated = $request->validate([
             'space_id'          => 'required|exists:spaces,id',
             'subscription_name' => 'required|string|max:255',
@@ -75,14 +78,20 @@ public function createsubscription(Request $request)
             'variant'           => 'required|in:monthly,yearly',
             'currency'          => 'nullable|string|max:10',
             'price_per_month'   => 'required|numeric|min:0',
-            'access_type'       => 'nullable|in:discount,free_access,pay_individually',
+            //'access_type'       => 'nullable|in:discount,free_access,pay_individually',
+            'access_type'       => 'nullable|exists:sub_access_setting,id',
             'discount_rate'     => 'nullable|numeric|min:0|max:100',
             'product_ids'       => 'array',
             'product_ids.*'     => 'integer|exists:products,id',
             'service_ids'       => 'array',
             'service_ids.*'     => 'integer|exists:services,id',
         ]);
-        $validated['access_type']   = $validated['access_type'] ?? 'discount';
+        // $validated['access_type']   = $validated['access_type'] ?? 'discount';
+        if ($request->filled('access_type')) {
+            $validated['access_type'] = $request->access_type;
+        } else {
+            $validated['access_type'] = DB::table('sub_access_setting')->value('id');
+        }
         $validated['discount_rate'] = $validated['discount_rate'] ?? 0;
         $exists = Subscription::where('client_id', $client_id)->where('name', $validated['subscription_name'])->exists();
         if ($exists) {
@@ -136,38 +145,38 @@ public function createsubscription(Request $request)
             DB::commit();
 
             //sending messages to the customers whatsapp
-            $customers_list = ClientCustomer::where('client_id', $client_id)->where('space_id', $validated['space_id'])->pluck('customer_id');
-            $space_whapi_token=Space_whapichannel_details::where('client_id', $client_id)->where('space_id', $validated['space_id'])->value('token');
-            $client = new \GuzzleHttp\Client();
-            foreach ($customers_list as $customer_id) {
-            $customer = Customer::find($customer_id);
-            if ($customer && $customer->whatsapp_number) {
-            try {
-            $phonenumber = preg_replace('/\D/', '', $customer->whatsapp_number);
-            $response = $client->request('POST', 'https://gate.whapi.cloud/messages/text', [
-                'body' => json_encode([
-                    "typing_time" => 0,
-                    "to"          => "{$phonenumber}@s.whatsapp.net",
-                    "body"        => "NEW UPDATE🚨 {$customer->name}! Our brand new {$validated['subscription_name']}  Subscription is now available to you. Be among the first to become a member to enjoy exclusive benefits🚀",
-                ]),
-                'headers' => [
-                    'accept'        => 'application/json',
-                    'authorization' => "Bearer {$space_whapi_token}",
-                    'content-type'  => 'application/json',
-                ],
-            ]);
-            \Log::info("Message sent to {$customer->whatsapp_number}", [
-                'response' => $response->getBody()->getContents(),
-            ]);
+            // $customers_list = ClientCustomer::where('client_id', $client_id)->where('space_id', $validated['space_id'])->pluck('customer_id');
+            // $space_whapi_token=Space_whapichannel_details::where('client_id', $client_id)->where('space_id', $validated['space_id'])->value('token');
+            // $client = new \GuzzleHttp\Client();
+            // foreach ($customers_list as $customer_id) {
+            // $customer = Customer::find($customer_id);
+            // if ($customer && $customer->whatsapp_number) {
+            // try {
+            // $phonenumber = preg_replace('/\D/', '', $customer->whatsapp_number);
+            // $response = $client->request('POST', 'https://gate.whapi.cloud/messages/text', [
+            //     'body' => json_encode([
+            //         "typing_time" => 0,
+            //         "to"          => "{$phonenumber}@s.whatsapp.net",
+            //         "body"        => "NEW UPDATE🚨 {$customer->name}! Our brand new {$validated['subscription_name']}  Subscription is now available to you. Be among the first to become a member to enjoy exclusive benefits🚀",
+            //     ]),
+            //     'headers' => [
+            //         'accept'        => 'application/json',
+            //         'authorization' => "Bearer {$space_whapi_token}",
+            //         'content-type'  => 'application/json',
+            //     ],
+            // ]);
+            // \Log::info("Message sent to {$customer->whatsapp_number}", [
+            //     'response' => $response->getBody()->getContents(),
+            // ]);
 
-        } catch (\Exception $e) {
-            \Log::error("Failed to send message to {$customer->whatsapp_number}", [
-                'error' => $e->getMessage(),
-            ]);
-            continue;
-        }
-    }   
-    }
+        // } catch (\Exception $e) {
+        //     \Log::error("Failed to send message to {$customer->whatsapp_number}", [
+        //         'error' => $e->getMessage(),
+        //     ]);
+        //     continue;
+        // }
+    // }   
+    // }
             return response()->json([
                 'message'             => 'Subscription created successfully!',
                 'subscription_type'   => $validated['subscription_type'],
@@ -236,5 +245,182 @@ public function subscriber_statistics(Request $request){
         'total_subscribers'=>$total_subscribers,
     ]);
 }
+
+ /**
+     * Subscription List API
+     *
+     * archived = 0 or not passed → Active subscriptions
+     * archived = 1              → Archived subscriptions
+     */
+    public function index(Request $request)
+{
+    $archived = $request->query('archived');
+
+    $query = Subscription::query();
+
+    if ($archived === '1') {
+        // Show only archived subscriptions
+        $query->whereNotNull('archived_at');
+    } elseif ($archived === '0') {
+        // Show only active subscriptions
+        $query->whereNull('archived_at');
+    }
+    // If archived param is not passed → show ALL subscriptions
+
+    $subscriptions = $query
+        ->orderBy('id', 'desc')
+        ->get();
+
+    return response()->json([
+        'status' => true,
+        'filter' => $archived === null
+            ? 'all'
+            : ($archived === '1' ? 'archived' : 'active'),
+        'data'   => $subscriptions
+    ]);
+}
+
+
+    /**
+     * / Update Subscription
+     */
+    public function update(Request $request, $id)
+{
+    $subscription = Subscription::findOrFail($id);
+
+    // ❌ Block update if archived
+    if ($subscription->archived_at !== null) {
+        return response()->json([
+            'status'  => false,
+            'message' => 'First unarchive the data'
+        ], 403);
+    }
+
+    // ✅ Validation (partial update allowed)
+    $validated = $request->validate([
+        'subscription_name' => 'sometimes|required|string|max:255',
+        'description'       => 'sometimes|nullable|string',
+        'subscription_type' => 'sometimes|required|string',
+        'variant'           => 'sometimes|required|string',
+        'price_per_month'   => 'sometimes|required|numeric',
+        'currency'          => 'sometimes|nullable|string|size:3',
+        'access_type'       => 'sometimes|required|integer|in:1,2,3',
+        'discount_rate'     => 'sometimes|nullable|numeric|min:0|max:100',
+    ]);
+
+    $data = [];
+
+    // 🔤 Basic fields mapping
+    if (isset($validated['subscription_name'])) {
+        $data['name'] = $validated['subscription_name'];
+    }
+
+    if (array_key_exists('description', $validated)) {
+        $data['description'] = $validated['description'];
+    }
+
+    if (isset($validated['subscription_type'])) {
+        $data['subscription_type'] = $validated['subscription_type'];
+    }
+
+    if (isset($validated['variant'])) {
+        $data['variant'] = $validated['variant'];
+    }
+
+    if (isset($validated['price_per_month'])) {
+        $data['price'] = $validated['price_per_month'];
+    }
+
+    if (isset($validated['currency'])) {
+        $data['currency'] = $validated['currency'] ?? 'USD';
+    }
+
+    // 🔁 ACCESS TYPE + DISCOUNT LOGIC
+    if (isset($validated['access_type'])) {
+
+        // UI → DB mapping
+        $accessTypeDbMap = [
+            1 => 2, // free
+            2 => 3, // paid
+            3 => 1, // discount
+        ];
+
+        $data['access_type'] = $accessTypeDbMap[$validated['access_type']];
+
+        // Discount rule
+        if ($validated['access_type'] == 3) {
+            $data['discount_rate'] = $validated['discount_rate'] ?? 0;
+        } else {
+            $data['discount_rate'] = 0;
+        }
+    }
+
+    // ❗ Nothing to update
+    if (empty($data)) {
+        return response()->json([
+            'status'  => false,
+            'message' => 'No data provided for update'
+        ], 422);
+    }
+
+    // ✅ Update only provided fields
+    $subscription->update($data);
+
+    return response()->json([
+        'status'  => true,
+        'message' => 'Subscription updated successfully',
+        'data'    => $subscription
+    ]);
+}
+
+    
+
+    /**
+     * Archive Subscription
+     * (Same row update, no delete)
+     */
+    public function archive($id)
+    {
+        Subscription::where('id', $id)
+            ->whereNull('archived_at')
+            ->update([
+                'archived_at' => now()
+            ]);
+
+        return response()->json([
+            'status'  => true,
+            'message' => 'Subscription archived successfully'
+        ]);
+    }
+
+    public function unarchive($id)
+{
+    Subscription::where('id', $id)
+        ->whereNotNull('archived_at')
+        ->update([
+            'archived_at' => null
+        ]);
+
+    return response()->json([
+        'status'  => true,
+        'message' => 'Subscription unarchived successfully'
+    ]);
+}
+
+
+    /**
+     * Delete Subscription (Permanent)
+     */
+    public function destroy($id)
+    {
+        $subscription = Subscription::findOrFail($id);
+        $subscription->delete();
+
+        return response()->json([
+            'status'  => true,
+            'message' => 'Subscription deleted permanently'
+        ]);
+    }
+
 
 }
