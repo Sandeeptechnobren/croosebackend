@@ -1,0 +1,50 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git *)",
+      "Bash(composer *)",
+      "Bash(php artisan *)",
+      "Bash(php *)",
+      "Bash(C:\\php83\\php.exe *)",
+      "Bash(npm install*)",
+      "Bash(npm ci*)",
+      "Bash(npm run *)",
+      "Bash(npx *)",
+      "Bash(npx playwright *)",
+      "Bash(cat *)",
+      "Bash(find *)",
+      "Bash(grep *)",
+      "Bash(wc *)",
+      "Bash(head *)",
+      "Bash(tail *)",
+      "Bash(ls *)",
+      "Bash(ssh *)",
+      "Bash(scp *)",
+      "Bash(rsync *)",
+      "Bash(pm2 *)",
+      "Bash(docker *)",
+      "Bash(docker-compose *)",
+      "Bash(curl *)",
+      "Bash(sqlite3 *)",
+      "Bash(pg_dump *)",
+      "Bash(mysqldump *)",
+      "Bash(psql *)",
+      "Bash(mysql *)",
+      "Bash(systemctl *)",
+      "Bash(journalctl *)",
+      "Bash(nginx *)",
+      "Bash(certbot *)",
+      "Bash(ufw *)",
+      "Bash(openssl *)"
+    ],
+    "deny": [
+      "Bash(rm -rf /)",
+      "Bash(sudo rm -rf *)",
+      "Bash(> /dev/sda*)",
+      "Bash(mkfs *)",
+      "Bash(dd if=*)",
+      "Bash(sed -i *)",
+      "Bash(find * -exec *)"
+    ]
+  }
+}
