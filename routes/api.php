@@ -21,6 +21,7 @@ use App\Http\Controllers\OrdiioCartController;
 use App\Http\Controllers\OrdiioPlaylistsController;
 use App\Http\Controllers\BusinessCategoryController;
 use App\Http\Controllers\WhapiController;
+use App\Http\Controllers\ChatterlyController;
 use App\Http\Controllers\OrdiioApiController\OrdiioFilterController;
 use App\Http\Controllers\paymentController;
 use App\Http\Controllers\SubscriptionController;
@@ -104,10 +105,10 @@ use App\Http\Controllers\BroadcastController;
         Route::get('/get_conversations',[ConversationController::class,'get_conversations']);
         Route::get('/total_chats',[ConversationController::class,'total_chats']);
         //whapi Automation
-        Route::post('/whapi/instance', [WhapiController::class, 'createInstance']);
-        Route::post('/whapi/instancenew', [WhapiController::class, 'createInstance1']);
-        Route::get('/whapi/instance/qr', [WhapiController::class, 'fetchQrCode'])->name('whapi.qr');
-        Route::get('/whapi/instance_activation_status',[WhapiController::class,'instance_activation_status']);
+        Route::post('/whapi/instance', [ChatterlyController::class, 'createInstance']);
+        Route::post('/whapi/instancenew', [ChatterlyController::class, 'createInstance1']);
+        Route::get('/whapi/instance/qr', [ChatterlyController::class, 'fetchQr'])->name('whapi.qr');
+        Route::get('/whapi/instance_activation_status',[ChatterlyController::class,'instance_activation_status']);
         //Payment Controller
         Route::post('/payment_details',[paymentController::class,'payment_details']);
         //Subscription Controller
