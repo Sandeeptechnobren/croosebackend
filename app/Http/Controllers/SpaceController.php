@@ -445,6 +445,98 @@ public function space_chat_list(Request $request)
         'space_id' => 'required|exists:spaces,id'
     ]);
     $space_id = $validated['space_id'];
+
+    // If this space has a connected Chatterly instance, return its live WhatsApp chats.
+    $instance = Space_whapichannel_details::where('space_id', $space_id)->first();
+    $isChatterly = $instance && (str_starts_with((string) $instance->token, 'inst_') || $instance->payment_method === 'chatterly');
+
+    if ($instance && $instance->token && $instance->name) {
+        $iname  = $instance->name;
+        $itoken = $instance->token;
+
+        // contact-name -> REAL phone map (cached 5 min). LID chats are mapped to the
+        // real "@c.us" number of the same-named saved contact.
+        $nameToNumber = cache()->remember("chatterly_contacts_{$iname}", 300, function () use ($iname, $itoken) {
+            $map = [];
+            try {
+                $cr = Http::timeout(40)->post(
+                    "https://chatterly.easycoders.in/api/instance/contacts/{$iname}",
+                    ['token' => $itoken]
+                );
+                if ($cr->successful()) {
+                    foreach (($cr->json('data') ?? []) as $ct) {
+                        $cid = $ct['id'] ?? '';
+                        $nm  = trim((string) ($ct['name'] ?? ''));
+                        if ($nm !== '' && str_contains($cid, '@c.us')) {
+                            $num = preg_replace('/[^0-9]/', '', explode('@', $cid)[0]);
+                            if ($num) { $map[$nm] = $num; }
+                        }
+                    }
+                }
+            } catch (\Throwable $e) {}
+            return $map;
+        });
+
+        // Fetch the live chat list, retrying since the endpoint can be briefly flaky.
+        for ($attempt = 0; $attempt < 3; $attempt++) {
+            try {
+                $resp = Http::timeout(20)->post(
+                    "https://chatterly.easycoders.in/api/instance/chats/{$iname}",
+                    ['token' => $itoken]
+                );
+                if ($resp->successful()) {
+                    $chats = collect($resp->json('data') ?? [])->map(function ($c) use ($nameToNumber) {
+                        $id = $c['id'] ?? '';
+                        $isGroup = (bool) ($c['isGroup'] ?? false);
+                        $idDigits = preg_replace('/[^0-9]/', '', explode('@', $id)[0]);
+                        $cname = trim((string) ($c['name'] ?? ''));
+
+                        // Resolve ONLY the real phone number (never a LID/group id).
+                        if ($isGroup) {
+                            $number = '';
+                        } elseif (str_contains($id, '@c.us') && $idDigits) {
+                            $number = $idDigits;
+                        } else {
+                            $number = $nameToNumber[$cname] ?? '';
+                        }
+
+                        $ts = $c['lastMessage']['timestamp'] ?? ($c['timestamp'] ?? null);
+                        return [
+                            'whatsapp_number' => $number,
+                            'phone'           => $number,
+                            'chat_id'         => $id,
+                            'customer_name'   => $cname !== '' ? $cname : null,
+                            'is_group'        => $isGroup,
+                            'unread'          => $c['unreadCount'] ?? 0,
+                            'user_message'    => $c['lastMessage']['body'] ?? '',
+                            'created_at'      => $ts ? date('Y-m-d H:i:s', (int) $ts) : null,
+                            'current_step'    => null,
+                        ];
+                    })->values();
+
+                    return response()->json([
+                        'status'  => true,
+                        'data'    => $chats,
+                        'message' => 'Live Conversations',
+                    ]);
+                }
+            } catch (\Throwable $e) {
+                // retry
+            }
+        }
+
+        // Chats endpoint unavailable. For a Chatterly instance, DON'T show the raw stored
+        // conversations (LID-only "unknown" entries) — return empty so the UI keeps its
+        // last good list instead of flashing mystery chats.
+        if ($isChatterly) {
+            return response()->json([
+                'status'  => true,
+                'data'    => [],
+                'message' => 'Chats temporarily unavailable',
+            ]);
+        }
+    }
+
     $latestConversations = DB::table('conversations as c')
         ->join(DB::raw('(
             SELECT whatsapp_number, MAX(created_at) as latest_created_at

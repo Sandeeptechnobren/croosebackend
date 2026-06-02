@@ -42,7 +42,9 @@ use App\Http\Controllers\BroadcastController;
     Route::post('/ordiio/reset-password',[AuthController::class,'reset_password_ordiio']);
     Route::post('/verify-reset-password', [AuthController::class, 'verifyOtpAndResetPassword']);
     Route::post('/find_account/{email}',[AuthController::class,'find_account']);
-    Route::middleware('auth:sanctum')->group(function () 
+    // Chatterly incoming-message webhook (called by Chatterly cloud — no auth header)
+    Route::post('/chatterly/webhook', [ChatterlyController::class, 'webhook']);
+    Route::middleware('auth:sanctum')->group(function ()
     {
         Route::post('/account_profile',[ClientsController::class,'account_profile']);
         Route::post('/account/profile/update',[ClientsController::class,'updateAccountProfile']);
@@ -109,6 +111,7 @@ use App\Http\Controllers\BroadcastController;
         Route::post('/whapi/instancenew', [ChatterlyController::class, 'createInstance1']);
         Route::get('/whapi/instance/qr', [ChatterlyController::class, 'fetchQr'])->name('whapi.qr');
         Route::get('/whapi/instance_activation_status',[ChatterlyController::class,'instance_activation_status']);
+        Route::post('/whapi/mark-read', [ChatterlyController::class, 'markRead']);
         //Payment Controller
         Route::post('/payment_details',[paymentController::class,'payment_details']);
         //Subscription Controller

@@ -21,37 +21,27 @@ public function get_conversations(Request $request){
         'phone_number' => 'required',
         'space_id'     => 'required',
     ]);
-    $phone_number = $validated['phone_number'];
-    $space = Space::where('id',$validated['space_id'])->first();
-    $whapi_token = Space_whapichannel_details::where('space_id',$space->id)->value('token');        
-    $whapi_chat_id = $phone_number.'@s.whatsapp.net';
-    $client = new \GuzzleHttp\Client();
-    $response = $client->request('GET',"https://gate.whapi.cloud/messages/list/{$whapi_chat_id}", [
-        'headers' => [
-            'accept' => 'application/json',
-            'authorization' => "Bearer {$whapi_token}",
-        ],
-    ]);
-    $messages = json_decode($response->getBody(), true);
-    $formattedMessages = collect($messages['messages'] ?? [])
-        ->map(function($msg) {
-            $sender = ($msg['from_me'] ?? false) ? 'bot' : 'user';
-            return [
-                'sender'    => $sender,
-                'text'      => $msg['text']['body'] ?? '',
-                'timestamp' => isset($msg['timestamp']) 
-                                ? date('Y-m-d H:i:s', $msg['timestamp']) 
-                                : null,
-                'status'    => $msg['ack'] ?? null,
-                'raw_time'  => $msg['timestamp'] ?? 0, // keep raw timestamp for sorting
-            ];
-        })
-        ->sortBy('raw_time')  // sort ascending (oldest → newest)
-        ->values()            // reset array keys
-        ->map(function($msg) {
-            unset($msg['raw_time']); // remove helper key before returning
-            return $msg;
-        });
+    // Read the stored conversation thread (populated by the Chatterly webhook),
+    // instead of the legacy WHAPI gateway which does not work with Chatterly instances.
+    $number = preg_replace('/[^0-9]/', '', $validated['phone_number']);
+
+    $rows = Conversation::where('client_id', $client_id)
+        ->where('space_id', $validated['space_id'])
+        ->where('whatsapp_number', $number)
+        ->orderBy('message_timestamp')
+        ->orderBy('id')
+        ->get();
+
+    $formattedMessages = [];
+    foreach ($rows as $row) {
+        $time = (string) ($row->message_timestamp ?? $row->created_at);
+        if (!empty($row->user_message)) {
+            $formattedMessages[] = ['sender' => 'user', 'text' => $row->user_message, 'timestamp' => $time];
+        }
+        if (!empty($row->bot_response)) {
+            $formattedMessages[] = ['sender' => 'bot', 'text' => $row->bot_response, 'timestamp' => $time];
+        }
+    }
 
     return response()->json([
         "status"        => 200,

@@ -107,23 +107,33 @@ class MessageService
     {
         return Space_whapichannel_details::where('space_id', $spaceId)->value('token');
     }
-    public function getChatByPhone(int $spaceId, string $phone, int $count = 100): array
+    public function getChatByPhone(int $spaceId, string $phone, int $count = 200): array
     {
-        $token = $this->token($spaceId);
-        if (!$token) {
-            return ['success' => false, 'message' => 'WHAPI token not found'];
+        // Show ONLY messages received AFTER the WhatsApp connected (captured by the
+        // Chatterly webhook into `conversations`). No pre-connection history, and each
+        // chat is matched by its exact number so threads never mix.
+        $number = preg_replace('/[^0-9]/', '', $phone);
+
+        // No number (e.g. a group with no personal phone) -> no per-contact thread.
+        if ($number === '') {
+            return ['success' => true, 'chat_id' => $phone, 'data' => ['messages' => []]];
         }
 
-        $chatId = $phone . '@s.whatsapp.net';
+        $rows = \App\Models\Conversation::where('space_id', $spaceId)
+            ->where('whatsapp_number', $number)
+            ->orderBy('message_timestamp')
+            ->orderBy('id')
+            ->limit($count)
+            ->get();
 
-        $res = Http::withHeaders([
-            'Authorization' => 'Bearer ' . $token,
-            'Accept'        => 'application/json',
-        ])->get("https://gate.whapi.cloud/messages/list/{$chatId}", ['count' => $count]);
+        $messages = [];
+        foreach ($rows as $r) {
+            $ts = strtotime((string) ($r->message_timestamp ?? $r->created_at));
+            if (!empty($r->user_message)) { $messages[] = ['from_me' => false, 'body' => $r->user_message, 'timestamp' => $ts]; }
+            if (!empty($r->bot_response)) { $messages[] = ['from_me' => true, 'body' => $r->bot_response, 'timestamp' => $ts]; }
+        }
 
-        return $res->ok()
-            ? ['success' => true, 'chat_id' => $chatId, 'data' => $res->json()]
-            : ['success' => false, 'message' => 'WHAPI request failed', 'error' => $res->json()];
+        return ['success' => true, 'chat_id' => $number, 'data' => ['messages' => $messages]];
     }
 
     public function sendText(int $spaceId, string $to, string $body)
