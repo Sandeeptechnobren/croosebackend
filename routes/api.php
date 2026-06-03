@@ -112,6 +112,7 @@ use App\Http\Controllers\BroadcastController;
         Route::get('/whapi/instance/qr', [ChatterlyController::class, 'fetchQr'])->name('whapi.qr');
         Route::get('/whapi/instance_activation_status',[ChatterlyController::class,'instance_activation_status']);
         Route::post('/whapi/mark-read', [ChatterlyController::class, 'markRead']);
+        Route::get('/whapi/profile-pic', [ChatterlyController::class, 'profilePic']);
         //Payment Controller
         Route::post('/payment_details',[paymentController::class,'payment_details']);
         //Subscription Controller

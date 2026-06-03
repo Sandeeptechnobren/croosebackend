@@ -13,14 +13,16 @@ class BroadcastHeader extends Model
         'target_id',
         'frequency',
         'scheduled_at',
+        'last_sent_at',
         'content',
         'created_by',
         'updated_by',
         'deleted_by'
     ];
     protected $casts = [
-    'scheduled_at' => 'date',
-];
+        'scheduled_at' => 'date',
+        'last_sent_at' => 'datetime',
+    ];
 
     public function target()
     {

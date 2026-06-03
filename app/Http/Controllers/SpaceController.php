@@ -454,12 +454,15 @@ public function space_chat_list(Request $request)
         $iname  = $instance->name;
         $itoken = $instance->token;
 
-        // contact-name -> REAL phone map (cached 5 min). LID chats are mapped to the
-        // real "@c.us" number of the same-named saved contact.
-        $nameToNumber = cache()->remember("chatterly_contacts_{$iname}", 300, function () use ($iname, $itoken) {
+        // contact-name -> REAL phone map (cached 30 min). LID chats are mapped to the
+        // real "@c.us" number of the same-named saved contact. This call is heavy (~2.4s for
+        // thousands of contacts) and blocks the single-threaded dev server, so we cache it
+        // long — the contact list barely changes, and a missed new contact just shows without
+        // a resolved number until the next refresh.
+        $nameToNumber = cache()->remember("chatterly_contacts_{$iname}", 1800, function () use ($iname, $itoken) {
             $map = [];
             try {
-                $cr = Http::timeout(40)->post(
+                $cr = Http::timeout(12)->post(
                     "https://chatterly.easycoders.in/api/instance/contacts/{$iname}",
                     ['token' => $itoken]
                 );
@@ -477,15 +480,27 @@ public function space_chat_list(Request $request)
             return $map;
         });
 
-        // Fetch the live chat list, retrying since the endpoint can be briefly flaky.
-        for ($attempt = 0; $attempt < 3; $attempt++) {
+        // Instance's own number (cached) — used to tell which side a message is on.
+        $ownNumber = cache()->remember("chatterly_self_{$iname}", 3600, function () use ($iname, $itoken) {
             try {
-                $resp = Http::timeout(20)->post(
+                $r = Http::timeout(15)->post(
+                    "https://chatterly.easycoders.in/api/instance/account-info/{$iname}",
+                    ['token' => $itoken]
+                );
+                if ($r->successful()) { return preg_replace('/[^0-9]/', '', (string) $r->json('data.phone')); }
+            } catch (\Throwable $e) {}
+            return '';
+        });
+
+        // Fetch the live chat list, retrying since the endpoint can be briefly flaky.
+        for ($attempt = 0; $attempt < 2; $attempt++) {
+            try {
+                $resp = Http::timeout(12)->post(
                     "https://chatterly.easycoders.in/api/instance/chats/{$iname}",
                     ['token' => $itoken]
                 );
                 if ($resp->successful()) {
-                    $chats = collect($resp->json('data') ?? [])->map(function ($c) use ($nameToNumber) {
+                    $chats = collect($resp->json('data') ?? [])->map(function ($c) use ($nameToNumber, $ownNumber) {
                         $id = $c['id'] ?? '';
                         $isGroup = (bool) ($c['isGroup'] ?? false);
                         $idDigits = preg_replace('/[^0-9]/', '', explode('@', $id)[0]);
@@ -500,6 +515,10 @@ public function space_chat_list(Request $request)
                             $number = $nameToNumber[$cname] ?? '';
                         }
 
+                        // Did WE send the last message? (so the preview bubble sits on the right)
+                        $lastFrom = preg_replace('/[^0-9]/', '', explode('@', (string) ($c['lastMessage']['from'] ?? ''))[0]);
+                        $lastFromMe = ($ownNumber !== '' && $lastFrom === $ownNumber);
+
                         $ts = $c['lastMessage']['timestamp'] ?? ($c['timestamp'] ?? null);
                         return [
                             'whatsapp_number' => $number,
@@ -509,7 +528,12 @@ public function space_chat_list(Request $request)
                             'is_group'        => $isGroup,
                             'unread'          => $c['unreadCount'] ?? 0,
                             'user_message'    => $c['lastMessage']['body'] ?? '',
+                            'last_from_me'    => $lastFromMe,
                             'created_at'      => $ts ? date('Y-m-d H:i:s', (int) $ts) : null,
+                            // Raw UNIX timestamp (UTC) of the last message so the UI can render
+                            // the correct LOCAL time, matching WhatsApp. (created_at is a tz-less
+                            // string the browser would otherwise mis-parse as local time.)
+                            'timestamp'       => $ts ? (int) $ts : null,
                             'current_step'    => null,
                         ];
                     })->values();

@@ -110,13 +110,15 @@ public function sendtext(Request $request, Messageservice $whapi)
     $request->validate([
         'space_id' => 'required|integer',
         'phone'    => 'required',
-        'message'  => 'required|string'
+        'message'  => 'required|string',
+        'chat_id'  => 'nullable|string',
     ]);
 
     return $whapi->sendText(
         $request->space_id,
         $request->phone,
-        $request->message
+        $request->message,
+        $request->input('chat_id')
     );
    }
    public function userStatus($id)

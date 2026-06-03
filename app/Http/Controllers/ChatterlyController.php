@@ -38,9 +38,30 @@ class ChatterlyController extends Controller
 
             if ($existing && $existing->instance_id) {
 
-                // Instance already exists — return immediately so the QR request isn't
-                // blocked behind a slow instance/start call (the single-threaded dev server
-                // serializes requests). The QR (qrpng) works without re-starting.
+                // Start the instance — for a DISCONNECTED instance this regenerates its QR
+                // (hasQr) so it can be re-linked; for a connected one it's a no-op
+                // ("already running"). Without this, a disconnected instance has no QR and
+                // fetchQr returns "Unable to fetch QR".
+                try {
+                    Http::timeout(20)->post(
+                        "{$this->baseUrl}/instance/start",
+                        ['token' => $this->token, 'instance_name' => $existing->name]
+                    );
+                } catch (\Throwable $e) {}
+
+                // Re-point the webhook at the CURRENT public URL every time the agent is run.
+                // The dev tunnel (cloudflared) gets a new random URL on each restart, so an
+                // existing instance would otherwise keep POSTing to a dead URL — i.e. no
+                // incoming messages and no instant session.connected update. Re-registering
+                // here keeps it fresh without recreating the instance.
+                try {
+                    $webhookUrl = env('CHATTERLY_WEBHOOK_URL', rtrim(config('app.url'), '/') . '/api/chatterly/webhook');
+                    Http::timeout(20)->post(
+                        "{$this->baseUrl}/instance/webhook/{$existing->name}",
+                        ['token' => $this->token, 'webhookUrl' => $webhookUrl]
+                    );
+                } catch (\Throwable $e) {}
+
                 return response()->json([
                     'message' => 'Instance already exists for this space.',
                     'instance_status' => 1,
@@ -322,7 +343,14 @@ public function instance_activation_status(Request $request)
             // doesn't hammer Chatterly / block the single-threaded dev server (each live
             // status call takes ~1s and would otherwise stall the QR/chat requests).
             $iname = $instance->name;
-            $status = cache()->remember("chatterly_status_{$iname}", 4, function () use ($iname) {
+            // The session.connected / session.disconnected webhook keeps this flag accurate in
+            // REAL time, so this endpoint mainly returns the STORED flag (a fast DB read). We only
+            // reconcile with a live Chatterly status call behind an 8s cache, as a safety net for
+            // a webhook we might have missed. Doing the ~1s live call on EVERY poll saturated the
+            // single-threaded dev server and stalled both the QR-close poll and the chat list —
+            // which is exactly the lag we're removing here. The webhook also primes this cache,
+            // so right after login the next poll returns 1 with no live call at all.
+            $status = cache()->remember("chatterly_status_{$iname}", 8, function () use ($iname) {
                 return $this->checkConnectionStatus($iname);
             });
             if ($status !== null) {
@@ -351,6 +379,47 @@ public function instance_activation_status(Request $request)
         ], 500);
     }
 }
+public function profilePic(Request $request)
+{
+    try {
+        $validated = $request->validate([
+            'space_id' => 'required',
+            'number'   => 'required',
+        ]);
+
+        $instance = Space_whapichannel_details::where('space_id', $validated['space_id'])->first();
+        if (!$instance || empty($instance->token) || empty($instance->name)) {
+            return response()->json(['status' => true, 'url' => null], 200);
+        }
+
+        $number = preg_replace('/[^0-9]/', '', $validated['number']);
+        if ($number === '') {
+            return response()->json(['status' => true, 'url' => null], 200);
+        }
+
+        // Cache each contact's DP URL (or null) for a day — DPs rarely change, and the
+        // Chatterly endpoint is slow/flaky, so we never want to hit it repeatedly.
+        $iname = $instance->name;
+        $itoken = $instance->token;
+        $url = cache()->remember("chatterly_dp_{$iname}_{$number}", 86400, function () use ($iname, $itoken, $number) {
+            try {
+                $resp = Http::timeout(15)->post(
+                    "https://chatterly.easycoders.in/api/instance/profile-pic/{$iname}",
+                    ['token' => $itoken, 'number' => $number]
+                );
+                if ($resp->successful()) {
+                    return $resp->json('url');
+                }
+            } catch (\Throwable $e) {}
+            return null; // no DP / privacy-hidden / endpoint error
+        });
+
+        return response()->json(['status' => true, 'url' => $url], 200);
+    } catch (\Exception $e) {
+        return response()->json(['status' => true, 'url' => null], 200);
+    }
+}
+
 public function markRead(Request $request)
 {
     try {
@@ -434,32 +503,89 @@ private function checkConnectionStatus($instanceName)
                 return response()->json(['status' => false, 'message' => 'Unknown instance'], 200);
             }
 
-            // 2) Extract the message (defensive against payload shape)
+            $event = data_get($payload, 'event');
+
+            // 2) Session lifecycle — keep the DB linking flag in sync INSTANTLY.
+            // Chatterly fires `session.connected` the moment the phone links the device, and a
+            // disconnect/logout event when it unlinks. Handling them here flips the flag with
+            // ZERO polling lag (so the QR closes and chats appear the instant login happens).
+            // We also PRIME the status cache so the activation poll agrees and never races the
+            // flag back. The poll remains a fallback for when this webhook can't be reached.
+            $connectEvents    = ['session.connected', 'connected', 'authenticated', 'auth_success', 'ready', 'session.ready'];
+            $disconnectEvents = ['session.disconnected', 'disconnected', 'session.logout', 'logout', 'session.expired', 'auth_failure', 'session.error'];
+
+            if ($event && in_array($event, $connectEvents, true)) {
+                if ((int) $instance->_instance_activation_status !== 1) {
+                    $instance->_instance_activation_status = 1;
+                    $instance->save();
+                }
+                cache()->put("chatterly_status_{$instance->name}", ['ready' => true], 4);
+                return response()->json(['status' => true, 'message' => 'Session connected -> activated'], 200);
+            }
+
+            if ($event && in_array($event, $disconnectEvents, true)) {
+                if ((int) $instance->_instance_activation_status !== 0) {
+                    $instance->_instance_activation_status = 0;
+                    $instance->save();
+                }
+                cache()->put("chatterly_status_{$instance->name}", ['ready' => false], 4);
+                return response()->json(['status' => true, 'message' => 'Session disconnected -> deactivated'], 200);
+            }
+
+            // 3) Only store real messages (ignore message.ack / other events).
+            if ($event && $event !== 'message') {
+                return response()->json(['status' => true, 'message' => 'Ignored (' . $event . ')'], 200);
+            }
+
             $msg = $payload['data'] ?? $payload['message'] ?? $payload['payload'] ?? $payload;
 
-            $body = data_get($msg, 'body')
-                ?? data_get($msg, 'text')
-                ?? data_get($msg, 'message')
-                ?? data_get($msg, 'text.body')
-                ?? '';
-            $fromMe = (bool) (data_get($msg, 'fromMe') ?? data_get($msg, 'from_me') ?? false);
-            $ts = data_get($msg, 'timestamp') ?? data_get($msg, 'time');
-
-            $from = data_get($msg, 'from') ?? data_get($msg, 'chatId') ?? data_get($msg, 'sender') ?? data_get($msg, 'author');
+            $body = data_get($msg, 'body') ?? data_get($msg, 'text') ?? data_get($msg, 'caption') ?? '';
+            $ts   = data_get($msg, 'timestamp') ?? data_get($msg, 'time');
+            $from = data_get($msg, 'from') ?? data_get($msg, 'chatId') ?? data_get($msg, 'author');
             $to   = data_get($msg, 'to') ?? data_get($msg, 'recipient');
 
-            // The chat is keyed by the CONTACT's number: for an outgoing message that's the
-            // recipient (`to`); for an incoming message that's the sender (`from`).
-            $contact = $fromMe ? ($to ?: $from) : ($from ?: $to);
-
-            if (!$contact || $body === '') {
+            if ($body === '' || (!$from && !$to)) {
                 return response()->json(['status' => true, 'message' => 'Ignored (no text)'], 200);
             }
 
-            // normalise: strip @c.us / @lid / @s.whatsapp.net and non-digits
-            $number = preg_replace('/[^0-9]/', '', explode('@', (string) $contact)[0]);
+            // The Chatterly "message" payload has NO fromMe flag, so determine direction by
+            // comparing the sender to the instance's OWN number (cached from account-info).
+            $iname = $instance->name; $itoken = $instance->token;
+            $ownNumber = cache()->remember("chatterly_self_{$iname}", 3600, function () use ($iname, $itoken) {
+                try {
+                    $r = Http::timeout(15)->post(
+                        "https://chatterly.easycoders.in/api/instance/account-info/{$iname}",
+                        ['token' => $itoken]
+                    );
+                    if ($r->successful()) { return preg_replace('/[^0-9]/', '', (string) $r->json('data.phone')); }
+                } catch (\Throwable $e) {}
+                return '';
+            });
 
-            // 3) Store as a conversation row
+            $fromDigits = preg_replace('/[^0-9]/', '', explode('@', (string) $from)[0]);
+            $fromMe = ($ownNumber !== '' && $fromDigits === $ownNumber);
+
+            // Key the chat by the CONTACT's exact Chatterly id (same id as the list's chat_id):
+            // incoming -> the sender (`from`); outgoing -> the recipient (`to`).
+            $contactRaw = $fromMe ? $to : $from;
+            $number = preg_replace('/[^0-9]/', '', explode('@', (string) $contactRaw)[0]);
+            if ($number === '') {
+                return response()->json(['status' => true, 'message' => 'Ignored (no contact)'], 200);
+            }
+
+            // De-dupe: if this exact message (same chat, direction and text) was stored in the
+            // last 2 minutes, skip it. This prevents a double when WE sent it via the API (which
+            // already persisted a local copy) and Chatterly then echoes it back through here.
+            $dupExists = DB::table('conversations')
+                ->where('space_id', $instance->space_id)
+                ->where('whatsapp_number', $number)
+                ->where($fromMe ? 'bot_response' : 'user_message', $body)
+                ->where('created_at', '>=', now()->subSeconds(120))
+                ->exists();
+            if ($dupExists) {
+                return response()->json(['status' => true, 'message' => 'Duplicate skipped'], 200);
+            }
+
             DB::table('conversations')->insert([
                 'client_id'         => $instance->client_id,
                 'space_id'          => $instance->space_id,
@@ -472,7 +598,7 @@ private function checkConnectionStatus($instanceName)
                 'updated_at'        => now(),
             ]);
 
-            return response()->json(['status' => true, 'message' => 'Stored'], 200);
+            return response()->json(['status' => true, 'message' => 'Stored', 'from_me' => $fromMe], 200);
         } catch (\Exception $e) {
             Log::error('Chatterly webhook error', ['error' => $e->getMessage()]);
             return response()->json(['status' => false, 'message' => 'Webhook error', 'error' => $e->getMessage()], 200);

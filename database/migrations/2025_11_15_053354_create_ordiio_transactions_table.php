@@ -11,6 +11,10 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (Schema::hasTable('ordiio_transactions') || Schema::hasTable('Ordiio_transactions')) {
+            return;
+        }
+
         Schema::create('ordiio_transactions', function (Blueprint $table) {
             $table->id();
             $table->timestamps();

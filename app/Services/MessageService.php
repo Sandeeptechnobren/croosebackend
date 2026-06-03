@@ -13,41 +13,12 @@ class MessageService
 {
     public static function send(string $phone, string $message, int $spaceId): bool
     {
-    if (!$phone) {
-        Log::error('WHAPI: phone missing');
-        return false;
-    }
-    $whapi_token = Space_whapichannel_details::where('space_id', $spaceId)->value('token');
-
-    if (!$whapi_token) {
-        Log::error("WHAPI token not found for space {$spaceId}");
-        return false;
-    }
-    $phone = preg_replace('/\D/', '', $phone);
-    if (strlen($phone) === 10) {
-        $phone = '91' . $phone;
-    }
-    try {
-        $response = Http::withHeaders([
-            'Authorization' => 'Bearer ' . $whapi_token,
-            'Content-Type'  => 'application/json',
-        ])->post(env('WHAPI_URL'), [
-            'to'   => $phone,
-            'body' => $message,
-        ]);
-        if ($response->successful()) {
-            Log::info("WHAPI message sent → {$phone}");
-            return true;
+        if (!$phone) {
+            Log::error('Broadcast send: phone missing');
+            return false;
         }
-        Log::error('WHAPI failed', [
-            'phone' => $phone,
-            'resp'  => $response->body()
-        ]);
-        return false;
-    } catch (\Exception $e) {
-        Log::error("WHAPI exception → {$e->getMessage()}");
-        return false;
-    }
+        // Route through Chatterly (the old WHAPI gateway is dead).
+        return (bool) (self::sendViaChatterly($spaceId, $phone, $message)['success'] ?? false);
     }
 
 // public function sendScheduledMessages($targetId, $message,$spaceId)
@@ -75,32 +46,25 @@ class MessageService
 //     ]);
 // }
 
-    public function sendScheduledMessages($targetId, $message,$spaceId)
+    public function sendScheduledMessages($targetId, $message, $spaceId)
     {
-    $user = Auth::user();
-    $whapi_token=Space_whapichannel_details::where('space_id',$spaceId)->value('token');
-    
-    $customers = TargetCustomers::getCustomersByTargetMessageId($targetId, $user->id,$spaceId);
-    foreach ($customers as $phone) {
+        $user = Auth::user();
+        $customers = TargetCustomers::getCustomersByTargetMessageId($targetId, $user->id, $spaceId);
 
-        if (!$phone) {
-            continue;
+        // Deliver to each target customer via Chatterly (the old WHAPI gateway is dead).
+        $sent = 0; $failed = 0;
+        foreach ($customers as $phone) {
+            if (!$phone) { continue; }
+            $res = self::sendViaChatterly((int) $spaceId, (string) $phone, $message);
+            if ($res['success'] ?? false) { $sent++; } else { $failed++; }
         }
 
-        $phone = ltrim($phone, '+');
-
-        Http::withHeaders([
-            'Authorization' => 'Bearer ' . $whapi_token,
-            'Content-Type'  => 'application/json',
-        ])->post('https://gate.whapi.cloud/messages/text', [
-            'to'   => $phone,
-            'body' => $message,
+        return response()->json([
+            'status'  => 'success',
+            'message' => "Broadcast sent. Delivered: {$sent}, failed: {$failed}.",
+            'sent'    => $sent,
+            'failed'  => $failed,
         ]);
-    }
-    return response()->json([
-        'status'  => 'success',
-        'message' => 'Messages sent successfully',
-    ]);
     }
   
     protected function token(int $spaceId): ?string
@@ -136,27 +100,77 @@ class MessageService
         return ['success' => true, 'chat_id' => $number, 'data' => ['messages' => $messages]];
     }
 
-    public function sendText(int $spaceId, string $to, string $body)
+    /**
+     * Send a WhatsApp text via the space's Chatterly instance and persist it locally so it
+     * shows in the thread and survives a refresh (the webhook de-dupes its echo of this send).
+     *
+     * @param string      $to     Recipient phone (digits) used for delivery.
+     * @param string|null $chatId Open chat's id (e.g. "1234@lid"); the thread is keyed by its
+     *                            digits, so we store under it to keep the message in the right chat.
+     */
+    public function sendText(int $spaceId, string $to, string $body, ?string $chatId = null)
     {
-    $token = $this->token($spaceId);
-    if (!$token) {
-        return [
-            'success' => false,
-            'message' => 'Invalid space_id or token not found'
-        ];
+        return self::sendViaChatterly($spaceId, $to, $body, $chatId);
     }
-    $res = Http::withHeaders([
-        'Authorization' => 'Bearer ' . $token,
-        'Accept'        => 'application/json',
-        'Content-Type'  => 'application/json',
-    ])->post(
-        'https://gate.whapi.cloud/messages/text',
-        [
-            'typing_time' => 0,
-            'to'   => $to,
-            'body' => $body
-        ]
-    );
-    return $res->json();
+
+    /**
+     * Core WhatsApp text sender via the space's Chatterly instance. Persists the outgoing
+     * message locally so it shows in the thread and survives a refresh (the webhook de-dupes
+     * its echo). Shared by direct chat replies, "Send Message", and scheduled broadcasts.
+     */
+    public static function sendViaChatterly(int $spaceId, string $to, string $body, ?string $chatId = null): array
+    {
+        $instance = Space_whapichannel_details::where('space_id', $spaceId)->first();
+        if (!$instance || empty($instance->token) || empty($instance->name)) {
+            return ['success' => false, 'message' => 'WhatsApp instance not found for this space'];
+        }
+
+        // Number to deliver to (digits). A bare 10-digit number defaults to India (+91),
+        // matching the previous behaviour.
+        $sendNumber = preg_replace('/[^0-9]/', '', $to);
+        if ($sendNumber === '' && $chatId) {
+            $sendNumber = preg_replace('/[^0-9]/', '', explode('@', $chatId)[0]);
+        }
+        if ($sendNumber === '') {
+            return ['success' => false, 'message' => 'Invalid recipient'];
+        }
+        if (strlen($sendNumber) === 10) {
+            $sendNumber = '91' . $sendNumber;
+        }
+
+        // Key the stored copy by the OPEN chat's id digits (how getChatByPhone looks it up),
+        // so an outgoing message lands in the same thread the user is viewing.
+        $storeKey = $chatId ? preg_replace('/[^0-9]/', '', explode('@', $chatId)[0]) : $sendNumber;
+        if ($storeKey === '') { $storeKey = $sendNumber; }
+
+        try {
+            $res = Http::timeout(20)->post(
+                "https://chatterly.easycoders.in/api/instance/send/{$instance->name}",
+                ['token' => $instance->token, 'number' => $sendNumber, 'message' => $body]
+            );
+            $json = $res->json();
+
+            if ($res->successful() && ($json['success'] ?? false)) {
+                DB::table('conversations')->insert([
+                    'client_id'         => $instance->client_id,
+                    'space_id'          => $spaceId,
+                    'whatsapp_number'   => $storeKey,
+                    'user_message'      => '',
+                    'bot_response'      => $body,   // outgoing => from_me
+                    'session_id'        => $storeKey,
+                    'message_timestamp' => now(),
+                    'created_at'        => now(),
+                    'updated_at'        => now(),
+                ]);
+
+                return ['success' => true, 'message_id' => $json['messageId'] ?? null];
+            }
+
+            Log::error('Chatterly send failed', ['number' => $sendNumber, 'resp' => $res->body()]);
+            return ['success' => false, 'message' => 'Send failed'];
+        } catch (\Throwable $e) {
+            Log::error('Chatterly send exception', ['error' => $e->getMessage()]);
+            return ['success' => false, 'message' => 'Send error'];
+        }
     }
 }

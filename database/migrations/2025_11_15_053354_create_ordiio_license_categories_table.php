@@ -11,6 +11,10 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (Schema::hasTable('ordiio_license_categories')) {
+            return;
+        }
+
         Schema::create('ordiio_license_categories', function (Blueprint $table) {
             $table->id();
             $table->timestamps();
